@@ -14,6 +14,7 @@
 - W4-T2：用 Milvus Standalone + Attu 做 1M 向量压测，并用 bpftrace 做 eBPF 观察。
 - W4-T3：用同一批 1M 向量对比 Qdrant 与 Weaviate 的过滤检索延迟、内存和 API 体验。
 - W4-T4：对同一份 RFC 对比固定、语义、父子分块策略，并计算 Recall@5。
+- W4-T5：对 BGE-M3 与 OpenAI text-embedding-3 做多语言 QA 检索评测和成本对比。
 
 ## Quick Start
 
@@ -224,3 +225,42 @@ uv run rag-demo t4 ask "What does the RFC say about flow control?" --strategy pa
 - 固定分块：直接观察 `chunk_size` / `chunk_overlap` 对召回和 chunk 数的影响。
 - 语义分块：按段落相邻相似度合并，展示 chunk 边界与语义完整性的关系。
 - 父子分块：检索 child chunk，但按 parent section 去重返回，模拟 Parent-Child Retriever。
+
+## W4-T5 Embedding Selection
+
+默认 smoke test 不访问外部服务，使用 deterministic hashing embedding 跑通完整流程：
+
+```bash
+uv run rag-demo t5 evaluate
+```
+
+生成可编辑的 MTEB-style + 团队真实 QA JSONL：
+
+```bash
+uv run rag-demo t5 sample-data --output .rag/t5/team_qa.jsonl
+```
+
+真实评测 BGE-M3 和 OpenAI text-embedding-3：
+
+```bash
+export OPENAI_API_KEY=...
+
+uv run rag-demo t5 evaluate \
+  --real \
+  --dataset .rag/t5/team_qa.jsonl \
+  --models bge-m3,text-embedding-3-small,text-embedding-3-large \
+  --ollama-base-url http://192.168.1.18:11434 \
+  --report .rag/t5/embedding_report.json
+```
+
+查看报告：
+
+```bash
+uv run rag-demo t5 inspect --report .rag/t5/embedding_report.json
+```
+
+报告包含：
+
+- Recall@K、MRR、平均 embedding 延迟。
+- 多语言、维度、本地部署、估算 token 成本和向量内存。
+- 不可用模型不会中断默认评测，适合课堂现场对比环境差异。

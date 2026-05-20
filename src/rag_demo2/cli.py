@@ -34,6 +34,23 @@ from rag_demo2.chunking_recall import (
     write_report as write_t4_report,
 )
 from rag_demo2.config import DEFAULT_COLLECTION, model_config
+from rag_demo2.embedding_selection import (
+    DEFAULT_OPENAI_BASE_URL,
+    DEFAULT_T5_CACHE,
+    DEFAULT_T5_DATASET,
+    DEFAULT_T5_REPORT,
+    CandidateResult,
+    EmbeddingReport,
+    ensure_sample_dataset,
+    evaluate_embeddings,
+    parse_candidates,
+)
+from rag_demo2.embedding_selection import (
+    read_report as read_t5_report,
+)
+from rag_demo2.embedding_selection import (
+    write_report as write_t5_report,
+)
 from rag_demo2.milvus_bench import (
     DEFAULT_ATTU_HOST,
     DEFAULT_ATTU_PORT,
@@ -83,10 +100,12 @@ t1_app = typer.Typer(help="W4-T1 LangChain RAG Hello World.", no_args_is_help=Tr
 t2_app = typer.Typer(help="W4-T2 Milvus standalone 1M vector benchmark.", no_args_is_help=True)
 t3_app = typer.Typer(help="W4-T3 Qdrant vs Weaviate selection POC.", no_args_is_help=True)
 t4_app = typer.Typer(help="W4-T4 chunking strategy Recall@5 comparison.", no_args_is_help=True)
+t5_app = typer.Typer(help="W4-T5 embedding model selection evaluation.", no_args_is_help=True)
 app.add_typer(t1_app, name="t1")
 app.add_typer(t2_app, name="t2")
 app.add_typer(t3_app, name="t3")
 app.add_typer(t4_app, name="t4")
+app.add_typer(t5_app, name="t5")
 
 
 def version_callback(value: bool) -> None:
@@ -835,6 +854,103 @@ def t4_inspect(
     _print_t4_misses(result.misses)
 
 
+@t5_app.command("sample-data")
+def t5_sample_data(
+    output: Annotated[Path, typer.Option("--output", help="JSONL eval dataset output.")] = (
+        DEFAULT_T5_DATASET
+    ),
+) -> None:
+    """Write a small editable MTEB-style + team QA embedding eval dataset."""
+    try:
+        path = ensure_sample_dataset(output)
+    except Exception as exc:
+        console.print(f"[red]Sample data failed:[/red] {exc}")
+        raise typer.Exit(1) from exc
+    console.print(Panel.fit(f"Dataset: {path}", title="Embedding Eval Dataset"))
+
+
+@t5_app.command("evaluate")
+def t5_evaluate(
+    dataset: Annotated[Path, typer.Option("--dataset", help="JSONL eval dataset.")] = (
+        DEFAULT_T5_DATASET
+    ),
+    models: Annotated[
+        str,
+        typer.Option(
+            help="all or comma-separated: bge-m3,text-embedding-3-small,text-embedding-3-large."
+        ),
+    ] = "all",
+    top_k: Annotated[int, typer.Option("--top-k", help="Recall@K value.")] = 5,
+    real: Annotated[
+        bool,
+        typer.Option(
+            "--real",
+            help=(
+                "Call real Ollama/OpenAI embedding APIs. "
+                "Default uses deterministic offline hashing."
+            ),
+        ),
+    ] = False,
+    skip_unavailable: Annotated[
+        bool,
+        typer.Option(help="Keep the report even if one provider is unavailable."),
+    ] = True,
+    cache: Annotated[Path, typer.Option(help="Embedding cache directory.")] = DEFAULT_T5_CACHE,
+    report: Annotated[Path, typer.Option(help="JSON report path.")] = DEFAULT_T5_REPORT,
+    ollama_base_url: Annotated[
+        str,
+        typer.Option(help="Ollama base URL for BGE-M3."),
+    ] = "http://192.168.1.18:11434",
+    openai_base_url: Annotated[
+        str,
+        typer.Option(help="OpenAI-compatible embeddings base URL."),
+    ] = DEFAULT_OPENAI_BASE_URL,
+) -> None:
+    """Compare BGE-M3 with OpenAI text-embedding-3 models on retrieval QA pairs."""
+    try:
+        if dataset == DEFAULT_T5_DATASET:
+            ensure_sample_dataset(dataset)
+        selected = parse_candidates(models)
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console,
+            transient=True,
+        ) as progress:
+            progress.add_task("Embedding dataset and calculating retrieval metrics...", total=None)
+            result = evaluate_embeddings(
+                dataset_path=dataset,
+                candidates=selected,
+                top_k=top_k,
+                real=real,
+                skip_unavailable=skip_unavailable,
+                cache_dir=cache,
+                ollama_base_url=ollama_base_url,
+                openai_base_url=openai_base_url,
+            )
+        write_t5_report(report, result)
+    except Exception as exc:
+        console.print(f"[red]Embedding evaluation failed:[/red] {exc}")
+        raise typer.Exit(1) from exc
+    _print_t5_report(result)
+    _print_t5_misses(result)
+    console.print(f"[cyan]Report:[/cyan] {report}")
+
+
+@t5_app.command("inspect")
+def t5_inspect(
+    report: Annotated[Path, typer.Option(help="JSON report path.")] = DEFAULT_T5_REPORT,
+) -> None:
+    """Inspect a saved W4-T5 embedding selection report."""
+    try:
+        result = read_t5_report(report)
+    except Exception as exc:
+        console.print(f"[red]Inspect failed:[/red] {exc}")
+        raise typer.Exit(1) from exc
+    _print_t5_report(result)
+    _print_t5_misses(result)
+
+
 def _index_type(value: str) -> str:
     normalized = value.upper()
     if normalized not in {"IVF_FLAT", "HNSW"}:
@@ -1015,6 +1131,62 @@ def _print_t4_retrieved(items: list[RetrievedItem], strategy: str) -> None:
             item.section_title,
             item.chunk_id,
             item.preview,
+        )
+    console.print(table)
+
+
+def _print_t5_report(report: EmbeddingReport) -> None:
+    table = Table(title=f"Embedding Selection ({report.mode})")
+    table.add_column("Model")
+    table.add_column("Provider")
+    table.add_column("Dim", justify="right")
+    table.add_column("Local")
+    table.add_column(f"Recall@{report.top_k}", justify="right")
+    table.add_column("MRR", justify="right")
+    table.add_column("Avg ms", justify="right")
+    table.add_column("Cost", justify="right")
+    table.add_column("Vector MB", justify="right")
+    table.add_column("Status")
+    for result in report.results:
+        table.add_row(
+            result.name,
+            result.provider,
+            str(result.dims),
+            "yes" if result.local_deployable else "no",
+            f"{result.recall_at_5:.3f}",
+            f"{result.mrr:.3f}",
+            f"{result.avg_latency_ms:.2f}",
+            f"${result.estimated_cost_usd:.6f}",
+            f"{result.vector_memory_mb:.2f}",
+            _t5_status(result),
+        )
+    console.print(table)
+    console.print(Panel(report.recommendation, title="Recommendation", expand=False))
+
+
+def _t5_status(result: CandidateResult) -> str:
+    if not result.unavailable:
+        return "OK"
+    return f"Unavailable: {result.error}"
+
+
+def _print_t5_misses(report: EmbeddingReport, limit: int = 6) -> None:
+    if not report.misses:
+        console.print("[green]No misses in this run.[/green]")
+        return
+    table = Table(title=f"Embedding Miss Cases (first {min(limit, len(report.misses))})")
+    table.add_column("Model")
+    table.add_column("Lang")
+    table.add_column("Rank", justify="right")
+    table.add_column("Query")
+    table.add_column("Top IDs")
+    for miss in report.misses[:limit]:
+        table.add_row(
+            miss.model,
+            miss.language,
+            str(miss.rank or "-"),
+            miss.query,
+            " | ".join(miss.top_ids),
         )
     console.print(table)
 

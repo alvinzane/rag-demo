@@ -109,9 +109,22 @@
 
 ## W4-T5: Embedding 选型
 
-计划交付：
+已交付：
 
-- 对 BGE-M3 与 OpenAI `text-embedding-3` 系列进行对比。
-- 覆盖多语言、维度、成本、部署方式。
-- 使用 MTEB 子集和团队真实 QA 对评测。
-- 输出推荐结论和适用场景。
+- `rag-demo t5 sample-data`: 生成可编辑的 MTEB-style + 团队真实 QA JSONL。
+- `rag-demo t5 evaluate`: 对 BGE-M3、`text-embedding-3-small`、`text-embedding-3-large` 计算 Recall@K、MRR、延迟、成本和向量内存。
+- `rag-demo t5 inspect`: 查看保存的 embedding 选型报告。
+
+关键点：
+
+- 多语言：样例覆盖英文和中文检索查询，可替换为团队真实 QA。
+- 维度：BGE-M3 默认 1024 维，`text-embedding-3-small` 默认 1536 维，`text-embedding-3-large` 默认 3072 维。
+- 成本：BGE-M3 本地推理 API token 成本为 0，OpenAI 模型按估算 token 数和单价计算。
+- 部署：BGE-M3 走 Ollama，可本地或内网部署；OpenAI 模型走 Embeddings API。
+- 课堂可运行性：默认离线 hashing 模式跑完整流程；加 `--real` 后调用真实模型。
+
+验收：
+
+- 无 OpenAI Key 时 `uv run rag-demo t5 evaluate` 可完成 smoke test。
+- 有 Ollama 和 `OPENAI_API_KEY` 时可对真实模型进行同一数据集横向对比。
+- 输出 `.rag/t5/embedding_report.json`，并给出团队默认模型推荐。

@@ -12,7 +12,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_ollama import ChatOllama, OllamaEmbeddings
 
 from rag_demo2.config import DEFAULT_COLLECTION, ModelConfig
-from rag_demo2.documents import load_markdown_documents, split_documents
+from rag_demo2.documents import load_markdown_documents_from_roots, split_documents
 
 META_FILE = "index_meta.json"
 
@@ -20,6 +20,7 @@ META_FILE = "index_meta.json"
 @dataclass(frozen=True)
 class IndexMetadata:
     docs_dir: str
+    docs_dirs: list[str]
     document_count: int
     chunk_count: int
     chunk_size: int
@@ -52,7 +53,7 @@ def vectorstore(
 
 
 def build_index(
-    docs_dir: Path,
+    docs_dirs: list[Path],
     persist_dir: Path,
     config: ModelConfig,
     chunk_size: int = 800,
@@ -64,7 +65,7 @@ def build_index(
         shutil.rmtree(persist_dir)
     persist_dir.mkdir(parents=True, exist_ok=True)
 
-    docs = load_markdown_documents(docs_dir)
+    docs = load_markdown_documents_from_roots(docs_dirs)
     chunks = split_documents(docs, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
     Chroma.from_documents(
         documents=chunks,
@@ -74,7 +75,8 @@ def build_index(
     )
 
     metadata = IndexMetadata(
-        docs_dir=str(docs_dir),
+        docs_dir=str(docs_dirs[0]),
+        docs_dirs=[str(path) for path in docs_dirs],
         document_count=len(docs),
         chunk_count=len(chunks),
         chunk_size=chunk_size,
@@ -90,7 +92,10 @@ def read_metadata(persist_dir: Path) -> IndexMetadata:
     meta_path = persist_dir / META_FILE
     if not meta_path.exists():
         raise FileNotFoundError(f"Index metadata not found: {meta_path}")
-    return IndexMetadata(**json.loads(meta_path.read_text(encoding="utf-8")))
+    payload = json.loads(meta_path.read_text(encoding="utf-8"))
+    if "docs_dirs" not in payload:
+        payload["docs_dirs"] = [payload["docs_dir"]]
+    return IndexMetadata(**payload)
 
 
 def write_metadata(persist_dir: Path, metadata: IndexMetadata) -> None:

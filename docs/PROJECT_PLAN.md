@@ -4,7 +4,7 @@
 
 构建一个 Python + uv 管理的现代化 CLI demo，用 5 个连续目标帮助团队学习 RAG 基础、向量数据库压测、选型、分块策略和 Embedding 评测。
 
-默认模型后端为本地 Ollama；演示数据由用户导入 Markdown 目录。
+默认模型后端为远端 Ollama `http://192.168.1.18:11434`；演示数据由用户导入 Markdown 目录。
 
 ## 分支与 worktree
 
@@ -23,7 +23,7 @@
 交付一个可运行 CLI：
 
 - `rag-demo doctor`: 检查 Ollama、模型和运行环境。
-- `rag-demo t1 index`: 加载 Markdown，切分 chunk，写入本地 Chroma 索引。
+- `rag-demo t1 index`: 加载一个或多个 Markdown 目录，切分 chunk，写入本地 Chroma 索引。
 - `rag-demo t1 ask`: 基于索引执行一次性 RAG 问答。
 - `rag-demo t1 chat`: 交互式问答。
 - `rag-demo t1 inspect`: 查看索引元数据。
@@ -34,6 +34,7 @@
 - Splitter: 使用 `RecursiveCharacterTextSplitter`，默认 `chunk_size=800`、`chunk_overlap=120`。
 - Retriever: 使用 Chroma 本地持久化向量库。
 - LCEL: 使用 `ChatPromptTemplate | ChatOllama | StrOutputParser` 组合问答链。
+- 默认模型: `deepseek-v4-pro:cloud` 用于问答，`qwen3-embedding:latest` 用于 embedding。
 
 验收：
 

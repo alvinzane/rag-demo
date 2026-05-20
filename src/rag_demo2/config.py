@@ -3,9 +3,9 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 
-DEFAULT_CHAT_MODEL = "llama3.1"
-DEFAULT_EMBED_MODEL = "nomic-embed-text"
-DEFAULT_OLLAMA_BASE_URL = "http://localhost:11434"
+DEFAULT_CHAT_MODEL = "deepseek-v4-pro:cloud"
+DEFAULT_EMBED_MODEL = "qwen3-embedding:latest"
+DEFAULT_OLLAMA_BASE_URL = "http://192.168.1.18:11434"
 DEFAULT_COLLECTION = "rag_demo_t1"
 
 

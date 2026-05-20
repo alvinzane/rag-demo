@@ -77,7 +77,10 @@ def doctor(
 
 @t1_app.command("index")
 def t1_index(
-    docs: Annotated[Path, typer.Option("--docs", help="Markdown export directory.")],
+    docs: Annotated[
+        list[Path],
+        typer.Option("--docs", help="Markdown export directory. Repeat for multiple dirs."),
+    ],
     persist: Annotated[
         Path,
         typer.Option("--persist", help="Local vector index directory."),
@@ -91,6 +94,9 @@ def t1_index(
     reset: Annotated[bool, typer.Option(help="Delete existing index directory first.")] = False,
 ) -> None:
     """Index Markdown files into a local Chroma vector store."""
+    if not docs:
+        console.print("[red]Missing option:[/red] provide at least one --docs directory")
+        raise typer.Exit(2)
     config = model_config(chat_model, embed_model, base_url)
     try:
         with Progress(
@@ -104,7 +110,7 @@ def t1_index(
                 total=None,
             )
             metadata = build_index(
-                docs_dir=docs,
+                docs_dirs=docs,
                 persist_dir=persist,
                 config=config,
                 chunk_size=chunk_size,

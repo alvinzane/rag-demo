@@ -34,6 +34,13 @@ def load_markdown_documents(root: Path) -> list[Document]:
     return docs
 
 
+def load_markdown_documents_from_roots(roots: list[Path]) -> list[Document]:
+    docs: list[Document] = []
+    for root in roots:
+        docs.extend(load_markdown_documents(root))
+    return docs
+
+
 def split_documents(
     docs: list[Document],
     chunk_size: int = 800,

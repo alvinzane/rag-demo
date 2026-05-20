@@ -123,10 +123,13 @@ http://localhost:8000
 eBPF 观察性演示需要安装 `bpftrace` 并使用 root 权限。一个终端跑压测，另一个终端跑：
 
 ```bash
-sudo bpftrace observability/bpftrace/milvus_io.bt
-sudo bpftrace observability/bpftrace/milvus_tcp.bt
-sudo bpftrace observability/bpftrace/milvus_syscalls.bt
+sudo observability/observe_vector_db.sh cpu 30
+sudo observability/observe_vector_db.sh offcpu 30
+sudo observability/observe_vector_db.sh io 30
+sudo observability/observe_vector_db.sh docker-stats 30
 ```
+
+更多 profile 见 [observability/README.md](observability/README.md)。
 
 ## W4-T3 Qdrant vs Weaviate POC
 

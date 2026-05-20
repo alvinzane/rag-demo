@@ -1,0 +1,18 @@
+#!/usr/bin/env bpftrace
+
+software:page-faults:1
+/comm == "milvus" || comm == "qdrant" || comm == "weaviate"/
+{
+  @faults[comm] = count();
+  @fault_stacks[comm, kstack] = count();
+}
+
+interval:s:10
+{
+  printf("\nPage faults by process\n");
+  print(@faults);
+  printf("\nTop page fault kernel stacks\n");
+  print(@fault_stacks, 20);
+  clear(@faults);
+  clear(@fault_stacks);
+}

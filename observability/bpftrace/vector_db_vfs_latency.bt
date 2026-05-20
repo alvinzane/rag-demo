@@ -1,0 +1,32 @@
+#!/usr/bin/env bpftrace
+
+tracepoint:filemap:mm_filemap_add_to_page_cache
+/comm == "milvus" || comm == "qdrant" || comm == "weaviate"/
+{
+  @page_cache_add[comm] = count();
+}
+
+tracepoint:filemap:mm_filemap_delete_from_page_cache
+/comm == "milvus" || comm == "qdrant" || comm == "weaviate"/
+{
+  @page_cache_delete[comm] = count();
+}
+
+tracepoint:writeback:writeback_dirty_page
+/comm == "milvus" || comm == "qdrant" || comm == "weaviate"/
+{
+  @dirty_pages[comm] = count();
+}
+
+interval:s:10
+{
+  printf("\nPage cache adds\n");
+  print(@page_cache_add);
+  printf("\nPage cache deletes\n");
+  print(@page_cache_delete);
+  printf("\nDirty page events\n");
+  print(@dirty_pages);
+  clear(@page_cache_add);
+  clear(@page_cache_delete);
+  clear(@dirty_pages);
+}

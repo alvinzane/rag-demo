@@ -1,0 +1,18 @@
+#!/usr/bin/env bpftrace
+
+profile:hz:99
+/comm == "milvus" || comm == "qdrant" || comm == "weaviate"/
+{
+  @cpu_stacks[comm, kstack] = count();
+  @cpu_samples[comm] = count();
+}
+
+interval:s:10
+{
+  printf("\nCPU samples by process\n");
+  print(@cpu_samples);
+  printf("\nTop kernel stacks\n");
+  print(@cpu_stacks, 20);
+  clear(@cpu_samples);
+  clear(@cpu_stacks);
+}

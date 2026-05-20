@@ -1,0 +1,28 @@
+#!/usr/bin/env bpftrace
+
+tracepoint:sched:sched_switch
+/args->prev_comm == "milvus" || args->prev_comm == "qdrant" || args->prev_comm == "weaviate"/
+{
+  @offcpu_start[args->prev_pid] = nsecs;
+  @offcpu_comm[args->prev_pid] = args->prev_comm;
+}
+
+tracepoint:sched:sched_switch
+/@offcpu_start[args->next_pid]/
+{
+  $delta_us = (nsecs - @offcpu_start[args->next_pid]) / 1000;
+  @offcpu_us[@offcpu_comm[args->next_pid]] = hist($delta_us);
+  @offcpu_total_us[@offcpu_comm[args->next_pid]] = sum($delta_us);
+  delete(@offcpu_start[args->next_pid]);
+  delete(@offcpu_comm[args->next_pid]);
+}
+
+interval:s:10
+{
+  printf("\nOff-CPU latency in us\n");
+  print(@offcpu_us);
+  printf("\nTotal off-CPU time in us\n");
+  print(@offcpu_total_us);
+  clear(@offcpu_us);
+  clear(@offcpu_total_us);
+}

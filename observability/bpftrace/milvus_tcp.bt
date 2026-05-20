@@ -1,40 +1,34 @@
 #!/usr/bin/env bpftrace
 
-BEGIN
-{
-  printf("Tracing TCP send/receive size for Milvus process names. Press Ctrl-C to stop.\n");
-}
-
-kprobe:tcp_sendmsg
+tracepoint:tcp:tcp_retransmit_skb
 /comm == "milvus"/
 {
-  @send_bytes = hist(arg2);
-  @send_count = count();
+  @retransmits_by_state[args->state] = count();
+  @retransmits = count();
 }
 
-kprobe:tcp_recvmsg
+tracepoint:tcp:tcp_receive_reset
 /comm == "milvus"/
 {
-  @recv_count = count();
+  @receive_resets = count();
 }
 
-kretprobe:tcp_recvmsg
-/comm == "milvus" && retval > 0/
+tracepoint:tcp:tcp_send_reset
+/comm == "milvus"/
 {
-  @recv_bytes = hist(retval);
+  @send_resets = count();
 }
 
 interval:s:5
 {
-  printf("\nTCP send bytes\n");
-  print(@send_bytes);
-  printf("\nTCP receive bytes\n");
-  print(@recv_bytes);
-  printf("\nTCP calls\n");
-  print(@send_count);
-  print(@recv_count);
-  clear(@send_bytes);
-  clear(@recv_bytes);
-  clear(@send_count);
-  clear(@recv_count);
+  printf("\nTCP retransmits by state\n");
+  print(@retransmits_by_state);
+  printf("\nTCP retransmit/reset counts\n");
+  print(@retransmits);
+  print(@receive_resets);
+  print(@send_resets);
+  clear(@retransmits_by_state);
+  clear(@retransmits);
+  clear(@receive_resets);
+  clear(@send_resets);
 }

@@ -1,0 +1,14 @@
+#!/usr/bin/env bpftrace
+
+tracepoint:tcp:tcp_retransmit_skb
+/comm == "milvus" || comm == "qdrant" || comm == "weaviate"/
+{
+  @retransmits[comm] = count();
+}
+
+interval:s:10
+{
+  printf("\nTCP retransmits\n");
+  print(@retransmits);
+  clear(@retransmits);
+}

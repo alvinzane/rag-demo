@@ -460,9 +460,10 @@ uv run rag-demo t2 sweep \
 一个终端跑压测，另一个终端运行：
 
 ```bash
-sudo bpftrace observability/bpftrace/milvus_io.bt
-sudo bpftrace observability/bpftrace/milvus_tcp.bt
-sudo bpftrace observability/bpftrace/milvus_syscalls.bt
+sudo observability/observe_vector_db.sh cpu 30
+sudo observability/observe_vector_db.sh offcpu 30
+sudo observability/observe_vector_db.sh io 30
+sudo observability/observe_vector_db.sh syscalls 30
 ```
 
 脚本用途：
@@ -470,8 +471,21 @@ sudo bpftrace observability/bpftrace/milvus_syscalls.bt
 | 脚本 | 观察内容 |
 | --- | --- |
 | `milvus_io.bt` | block I/O 延迟分布 |
-| `milvus_tcp.bt` | Milvus TCP 收发行为 |
-| `milvus_syscalls.bt` | syscall 延迟分布 |
+| `milvus_tcp.bt` | Milvus TCP retransmit/reset |
+| `milvus_syscalls.bt` | Milvus raw syscall 延迟分布 |
+| `vector_db_cpu.bt` | Milvus/Qdrant/Weaviate CPU kernel stack 采样 |
+| `vector_db_offcpu.bt` | Milvus/Qdrant/Weaviate off-CPU 等待时间 |
+| `vector_db_page_faults.bt` | Milvus/Qdrant/Weaviate page fault |
+| `vector_db_tcp_retrans.bt` | Milvus/Qdrant/Weaviate TCP retransmit |
+| `vector_db_vfs_latency.bt` | page cache/writeback 活动 |
+
+统一入口：
+
+```bash
+observability/observe_vector_db.sh --help
+```
+
+详细说明见 `observability/README.md`。
 
 讲解点：
 
@@ -1054,4 +1068,3 @@ uv run rag-demo t5 evaluate --real --models bge-m3 --ollama-base-url http://192.
 - Pytest: 23 passed
 - T5 offline smoke: passed
 - T5 real BGE-M3 smoke: passed
-

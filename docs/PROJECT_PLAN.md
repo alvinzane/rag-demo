@@ -44,13 +44,23 @@
 
 ## W4-T2: Milvus 单机 + 1M 向量压测
 
-计划交付：
+已交付：
 
-- `docker compose up` 启动 Milvus Standalone + Attu。
-- 生成或导入 1M 向量。
-- 对 IVF_FLAT 和 HNSW 建索引并压测。
-- 支持 `nprobe` / `ef` 等参数调整。
-- 输出 QPS、P50/P95/P99、内存和索引构建耗时。
+- `docker-compose up -d` 启动 Milvus Standalone + Attu。
+- `rag-demo t2 generate`: 生成确定性查询集和可选全量 `.npy` 向量文件。
+- `rag-demo t2 load`: 按 batch 流式生成并导入 1M 向量，避免一次性占用内存。
+- `rag-demo t2 index`: 对 IVF_FLAT 和 HNSW 建索引。
+- `rag-demo t2 bench`: 执行固定次数检索，输出 QPS、P50/P95/P99、RSS 和行数。
+- `rag-demo t2 sweep`: 扫描 IVF_FLAT `nprobe` 或 HNSW `ef`。
+- `rag-demo t2 observe`: 输出 bpftrace 观察脚本运行方式。
+
+观察性：
+
+- `observability/bpftrace/milvus_io.bt`: block I/O 延迟分布。
+- `observability/bpftrace/milvus_tcp.bt`: Milvus TCP 收发。
+- `observability/bpftrace/milvus_syscalls.bt`: syscall 延迟分布。
+
+说明：当前环境使用 `docker-compose` 命令；若本地 Docker 支持 Compose plugin，也可使用 `docker compose`。
 
 ## W4-T3: Qdrant vs Weaviate 选型 POC
 

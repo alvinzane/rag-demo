@@ -1,0 +1,26 @@
+#!/usr/bin/env bpftrace
+
+BEGIN
+{
+  printf("Tracing syscall latency for Milvus process names. Press Ctrl-C to stop.\n");
+}
+
+tracepoint:syscalls:sys_enter_*
+/comm == "milvus"/
+{
+  @syscall_start[tid] = nsecs;
+}
+
+tracepoint:syscalls:sys_exit_*
+/comm == "milvus" && @syscall_start[tid]/
+{
+  @syscall_latency_us[probe] = hist((nsecs - @syscall_start[tid]) / 1000);
+  delete(@syscall_start[tid]);
+}
+
+interval:s:5
+{
+  printf("\nsyscall latency in us\n");
+  print(@syscall_latency_us);
+  clear(@syscall_latency_us);
+}

@@ -13,6 +13,7 @@
 - W4-T1：用 Ollama 对 Markdown 目录建立 RAG 索引，并提供一次性问答和交互式问答。
 - W4-T2：用 Milvus Standalone + Attu 做 1M 向量压测，并用 bpftrace 做 eBPF 观察。
 - W4-T3：用同一批 1M 向量对比 Qdrant 与 Weaviate 的过滤检索延迟、内存和 API 体验。
+- W4-T4：对同一份 RFC 对比固定、语义、父子分块策略，并计算 Recall@5。
 
 ## Quick Start
 
@@ -178,3 +179,48 @@ uv run rag-demo t3 bench --backend weaviate --runs 1000 --dim 768
 - Weaviate 使用 schema-first 数据模型，检索通过 GraphQL `nearVector` + `where`。
 - 报告输出 QPS、P50/P95/P99、容器内存和 API 类型，便于课堂选型讨论。
 - Weaviate 映射到宿主机 `8081`，避免和常见本地 `8080` 服务冲突。
+
+## W4-T4 Chunking Recall
+
+默认命令会自动生成一份小型 RFC demo 文档，便于课堂快速跑通：
+
+```bash
+uv run rag-demo t4 evaluate
+```
+
+输出三种策略的 chunk 数、平均检索延迟和 Recall@5，并写入：
+
+```text
+.rag/t4/recall_report.json
+```
+
+使用真实 RFC：
+
+```bash
+uv run rag-demo t4 evaluate \
+  --rfc ./docs/rfc9000.md \
+  --chunk-size 800 \
+  --chunk-overlap 120 \
+  --top-k 5
+```
+
+先从 RFC 标题自动生成可编辑查询集，再用人工标注后的查询集评测：
+
+```bash
+uv run rag-demo t4 queries --rfc ./docs/rfc9000.md --output .rag/t4/rfc9000_queries.jsonl
+uv run rag-demo t4 evaluate --rfc ./docs/rfc9000.md --queries .rag/t4/rfc9000_queries.jsonl
+```
+
+查看单条问题在不同策略下的检索结果：
+
+```bash
+uv run rag-demo t4 ask "What does the RFC say about flow control?" --strategy fixed
+uv run rag-demo t4 ask "What does the RFC say about flow control?" --strategy semantic
+uv run rag-demo t4 ask "What does the RFC say about flow control?" --strategy parent-child
+```
+
+演示点：
+
+- 固定分块：直接观察 `chunk_size` / `chunk_overlap` 对召回和 chunk 数的影响。
+- 语义分块：按段落相邻相似度合并，展示 chunk 边界与语义完整性的关系。
+- 父子分块：检索 child chunk，但按 parent section 去重返回，模拟 Parent-Child Retriever。

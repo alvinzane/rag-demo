@@ -10,6 +10,29 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
 from rag_demo2 import __version__
+from rag_demo2.chunking_recall import (
+    DEFAULT_RFC_PATH,
+    DEFAULT_T4_QUERIES,
+    DEFAULT_T4_REPORT,
+    MissCase,
+    RecallReport,
+    RetrievedItem,
+    StrategyEval,
+    ensure_sample_rfc,
+    evaluate_strategies,
+    load_queries,
+    load_rfc,
+    parse_sections,
+    parse_strategies,
+    parse_strategy,
+    read_report,
+    recommended_chunk_sizes,
+    strategy_retrieve,
+    write_queries,
+)
+from rag_demo2.chunking_recall import (
+    write_report as write_t4_report,
+)
 from rag_demo2.config import DEFAULT_COLLECTION, model_config
 from rag_demo2.milvus_bench import (
     DEFAULT_ATTU_HOST,
@@ -59,9 +82,11 @@ app = typer.Typer(help="RAG and vector database learning demos.", no_args_is_hel
 t1_app = typer.Typer(help="W4-T1 LangChain RAG Hello World.", no_args_is_help=True)
 t2_app = typer.Typer(help="W4-T2 Milvus standalone 1M vector benchmark.", no_args_is_help=True)
 t3_app = typer.Typer(help="W4-T3 Qdrant vs Weaviate selection POC.", no_args_is_help=True)
+t4_app = typer.Typer(help="W4-T4 chunking strategy Recall@5 comparison.", no_args_is_help=True)
 app.add_typer(t1_app, name="t1")
 app.add_typer(t2_app, name="t2")
 app.add_typer(t3_app, name="t3")
+app.add_typer(t4_app, name="t4")
 
 
 def version_callback(value: bool) -> None:
@@ -683,6 +708,133 @@ def t3_notes() -> None:
     console.print(Panel(sample, title="Weaviate GraphQL Sample", expand=False))
 
 
+@t4_app.command("queries")
+def t4_queries(
+    rfc: Annotated[Path, typer.Option("--rfc", help="RFC Markdown/text file.")] = DEFAULT_RFC_PATH,
+    output: Annotated[
+        Path,
+        typer.Option("--output", help="JSONL query set output."),
+    ] = DEFAULT_T4_QUERIES,
+    limit: Annotated[int | None, typer.Option(help="Optional max query count.")] = None,
+) -> None:
+    """Generate an editable section-grounded query set from one RFC."""
+    try:
+        if rfc == DEFAULT_RFC_PATH:
+            ensure_sample_rfc(rfc)
+        sections = parse_sections(load_rfc(rfc))
+        queries = load_queries(None, sections, limit)
+        write_queries(output, queries)
+    except Exception as exc:
+        console.print(f"[red]Query generation failed:[/red] {exc}")
+        raise typer.Exit(1) from exc
+    console.print(
+        Panel.fit(
+            f"RFC: {rfc}\nQueries: {len(queries)}\nOutput: {output}",
+            title="Query Set Ready",
+        )
+    )
+
+
+@t4_app.command("evaluate")
+def t4_evaluate(
+    rfc: Annotated[Path, typer.Option("--rfc", help="RFC Markdown/text file.")] = DEFAULT_RFC_PATH,
+    queries: Annotated[
+        Path | None,
+        typer.Option("--queries", help="Optional JSONL query set from t4 queries."),
+    ] = None,
+    strategies: Annotated[
+        str,
+        typer.Option(help="all or comma-separated: fixed,semantic,parent_child."),
+    ] = "all",
+    top_k: Annotated[int, typer.Option("--top-k", help="Recall@K value.")] = 5,
+    chunk_size: Annotated[int, typer.Option(help="Fixed/child chunk size.")] = 800,
+    chunk_overlap: Annotated[int, typer.Option(help="Fixed/child overlap.")] = 120,
+    semantic_threshold: Annotated[
+        float,
+        typer.Option(help="Adjacent paragraph similarity threshold for semantic chunking."),
+    ] = 0.42,
+    dim: Annotated[int, typer.Option(help="Local hashing embedding dimension.")] = 384,
+    query_limit: Annotated[int | None, typer.Option(help="Optional max query count.")] = None,
+    report: Annotated[Path, typer.Option(help="JSON report path.")] = DEFAULT_T4_REPORT,
+) -> None:
+    """Compare fixed, semantic, and parent-child chunking with Recall@5."""
+    try:
+        if rfc == DEFAULT_RFC_PATH:
+            ensure_sample_rfc(rfc)
+        selected = parse_strategies(strategies)
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console,
+            transient=True,
+        ) as progress:
+            progress.add_task("Building chunks and evaluating Recall@K...", total=None)
+            result = evaluate_strategies(
+                rfc_path=rfc,
+                query_path=queries,
+                strategies=selected,
+                top_k=top_k,
+                chunk_size=chunk_size,
+                chunk_overlap=chunk_overlap,
+                semantic_threshold=semantic_threshold,
+                dim=dim,
+                query_limit=query_limit,
+            )
+        write_t4_report(report, result)
+    except Exception as exc:
+        console.print(f"[red]Evaluate failed:[/red] {exc}")
+        raise typer.Exit(1) from exc
+    _print_t4_report(result)
+    _print_t4_misses(result.misses)
+    console.print(f"[cyan]Report:[/cyan] {report}")
+
+
+@t4_app.command("ask")
+def t4_ask(
+    query: Annotated[str, typer.Argument(help="Question to retrieve against the RFC.")],
+    rfc: Annotated[Path, typer.Option("--rfc", help="RFC Markdown/text file.")] = DEFAULT_RFC_PATH,
+    strategy: Annotated[str, typer.Option(help="fixed, semantic, or parent_child.")] = "semantic",
+    top_k: Annotated[int, typer.Option("--top-k", help="Number of retrieved chunks.")] = 5,
+    chunk_size: Annotated[int, typer.Option(help="Fixed/child chunk size.")] = 800,
+    chunk_overlap: Annotated[int, typer.Option(help="Fixed/child overlap.")] = 120,
+    semantic_threshold: Annotated[float, typer.Option(help="Semantic chunking threshold.")] = 0.42,
+    dim: Annotated[int, typer.Option(help="Local hashing embedding dimension.")] = 384,
+) -> None:
+    """Retrieve top-k chunks for one question under a selected chunking strategy."""
+    try:
+        if rfc == DEFAULT_RFC_PATH:
+            ensure_sample_rfc(rfc)
+        selected = parse_strategy(strategy)
+        results = strategy_retrieve(
+            rfc_path=rfc,
+            query=query,
+            strategy=selected,
+            top_k=top_k,
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
+            semantic_threshold=semantic_threshold,
+            dim=dim,
+        )
+    except Exception as exc:
+        console.print(f"[red]Retrieve failed:[/red] {exc}")
+        raise typer.Exit(1) from exc
+    _print_t4_retrieved(results, selected)
+
+
+@t4_app.command("inspect")
+def t4_inspect(
+    report: Annotated[Path, typer.Option(help="JSON report path.")] = DEFAULT_T4_REPORT,
+) -> None:
+    """Inspect a saved W4-T4 recall report."""
+    try:
+        result = read_report(report)
+    except Exception as exc:
+        console.print(f"[red]Inspect failed:[/red] {exc}")
+        raise typer.Exit(1) from exc
+    _print_t4_report(result)
+    _print_t4_misses(result.misses)
+
+
 def _index_type(value: str) -> str:
     normalized = value.upper()
     if normalized not in {"IVF_FLAT", "HNSW"}:
@@ -794,6 +946,75 @@ def _print_t3_bench_results(results: list[PocBenchResult]) -> None:
             f"{result.p99_ms:.2f}",
             f"{result.memory_mb:.2f}",
             result.api,
+        )
+    console.print(table)
+
+
+def _print_t4_report(report: RecallReport) -> None:
+    table = Table(title="Chunking Recall Comparison")
+    table.add_column("Strategy")
+    table.add_column("Chunks", justify="right")
+    table.add_column("Queries", justify="right")
+    table.add_column(f"Recall@{report.top_k}", justify="right")
+    table.add_column("Hits", justify="right")
+    table.add_column("Avg ms", justify="right")
+    table.add_column("Setting")
+    for result in report.results:
+        table.add_row(
+            result.strategy,
+            str(result.chunks),
+            str(result.queries),
+            f"{result.recall_at_k:.3f}",
+            f"{result.hits}/{result.queries}",
+            f"{result.avg_latency_ms:.2f}",
+            _t4_setting(result),
+        )
+    console.print(table)
+    sizes = ", ".join(str(item) for item in recommended_chunk_sizes(report.results[0].chunk_size))
+    console.print(f"[cyan]Tip:[/cyan] try chunk sizes {sizes} and compare recall/latency.")
+
+
+def _t4_setting(result: StrategyEval) -> str:
+    if result.strategy == "semantic":
+        return f"threshold={result.semantic_threshold}"
+    if result.strategy == "parent_child":
+        return f"child_size={result.chunk_size}, overlap={result.chunk_overlap}"
+    return f"chunk_size={result.chunk_size}, overlap={result.chunk_overlap}"
+
+
+def _print_t4_misses(misses: list[MissCase], limit: int = 6) -> None:
+    if not misses:
+        console.print("[green]No misses in this run.[/green]")
+        return
+    table = Table(title=f"Miss Cases (first {min(limit, len(misses))})")
+    table.add_column("Strategy")
+    table.add_column("Query")
+    table.add_column("Expected")
+    table.add_column("Retrieved Sections")
+    for miss in misses[:limit]:
+        table.add_row(
+            miss.strategy,
+            miss.query,
+            miss.expected_section,
+            " | ".join(miss.retrieved_sections),
+        )
+    console.print(table)
+
+
+def _print_t4_retrieved(items: list[RetrievedItem], strategy: str) -> None:
+    table = Table(title=f"Top-{len(items)} Retrieval ({strategy})")
+    table.add_column("#", justify="right")
+    table.add_column("Score", justify="right")
+    table.add_column("Section")
+    table.add_column("Chunk")
+    table.add_column("Preview")
+    for item in items:
+        table.add_row(
+            str(item.rank),
+            f"{item.score:.3f}",
+            item.section_title,
+            item.chunk_id,
+            item.preview,
         )
     console.print(table)
 

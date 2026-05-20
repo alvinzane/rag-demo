@@ -87,12 +87,25 @@
 
 ## W4-T4: 分块策略对比
 
-计划交付：
+已交付：
 
-- 固定长度、语义切块、父子切块三种策略。
-- 对同一份 RFC 建索引并执行固定查询集。
-- 计算 Recall@5。
-- 输出策略对比表和错误样例。
+- `rag-demo t4 queries`: 从同一份 RFC 的章节标题自动生成可编辑 JSONL 查询集。
+- `rag-demo t4 evaluate`: 对固定长度、语义切块、父子切块三种策略计算 Recall@5。
+- `rag-demo t4 ask`: 对单个问题展示某个策略下的 top-k 检索结果。
+- `rag-demo t4 inspect`: 读取已保存的 Recall 报告。
+
+关键点：
+
+- 固定分块：使用 `chunk_size` / `chunk_overlap` 生成滑动窗口 chunk。
+- 语义分块：按段落相似度阈值合并相邻段落，避免跨主题拼接。
+- 父子分块：索引 child chunk，命中后按 parent section 去重返回，模拟 Parent-Child Retriever。
+- 评测：同一份 RFC、同一批查询、同一个本地 hashing embedding，计算预期章节是否出现在 Top-K 中。
+
+验收：
+
+- 默认 `uv run rag-demo t4 evaluate` 可无外部服务跑通。
+- 可以替换为真实 RFC 和人工标注 JSONL 查询集。
+- 输出策略对比表、miss case 和 `.rag/t4/recall_report.json`。
 
 ## W4-T5: Embedding 选型
 

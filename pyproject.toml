@@ -1,0 +1,40 @@
+[project]
+name = "rag-demo2"
+version = "0.1.0"
+description = "A progressive RAG and vector database demo CLI for team learning."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "chromadb>=1.0.0",
+    "langchain>=0.3.0",
+    "langchain-chroma>=0.2.0",
+    "langchain-community>=0.3.0",
+    "langchain-ollama>=0.2.0",
+    "langchain-text-splitters>=0.3.0",
+    "onnxruntime<1.24.0",
+    "rich>=13.9.0",
+    "typer>=0.12.0",
+]
+
+[project.scripts]
+rag-demo = "rag_demo2.cli:app"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.0",
+    "ruff>=0.8.0",
+]
+
+[tool.uv]
+package = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

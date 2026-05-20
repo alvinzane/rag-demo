@@ -1,0 +1,79 @@
+# RAG 基础 & 向量数据库 Demo 开发计划
+
+## 项目目标
+
+构建一个 Python + uv 管理的现代化 CLI demo，用 5 个连续目标帮助团队学习 RAG 基础、向量数据库压测、选型、分块策略和 Embedding 评测。
+
+默认模型后端为本地 Ollama；演示数据由用户导入 Markdown 目录。
+
+## 分支与 worktree
+
+主仓库使用 `main` 保存项目骨架、文档和公共约定。每个目标使用独立分支与 sibling worktree 开发：
+
+| 目标 | 分支 | Worktree |
+| --- | --- | --- |
+| W4-T1 | `w4-t1-langchain-rag` | `../rag-demo2-w4-t1` |
+| W4-T2 | `w4-t2-milvus-1m-benchmark` | `../rag-demo2-w4-t2` |
+| W4-T3 | `w4-t3-qdrant-weaviate-poc` | `../rag-demo2-w4-t3` |
+| W4-T4 | `w4-t4-chunking-recall` | `../rag-demo2-w4-t4` |
+| W4-T5 | `w4-t5-embedding-selection` | `../rag-demo2-w4-t5` |
+
+## W4-T1: LangChain RAG Hello World
+
+交付一个可运行 CLI：
+
+- `rag-demo doctor`: 检查 Ollama、模型和运行环境。
+- `rag-demo t1 index`: 加载 Markdown，切分 chunk，写入本地 Chroma 索引。
+- `rag-demo t1 ask`: 基于索引执行一次性 RAG 问答。
+- `rag-demo t1 chat`: 交互式问答。
+- `rag-demo t1 inspect`: 查看索引元数据。
+
+关键点：
+
+- Loader: 使用 LangChain `TextLoader` 递归读取 `.md` / `.markdown`。
+- Splitter: 使用 `RecursiveCharacterTextSplitter`，默认 `chunk_size=800`、`chunk_overlap=120`。
+- Retriever: 使用 Chroma 本地持久化向量库。
+- LCEL: 使用 `ChatPromptTemplate | ChatOllama | StrOutputParser` 组合问答链。
+
+验收：
+
+- 可以索引约 100 篇 Markdown。
+- 可以返回答案和来源文件。
+- 空目录、索引不存在、Ollama 不可用时给出清晰提示。
+
+## W4-T2: Milvus 单机 + 1M 向量压测
+
+计划交付：
+
+- `docker compose up` 启动 Milvus Standalone + Attu。
+- 生成或导入 1M 向量。
+- 对 IVF_FLAT 和 HNSW 建索引并压测。
+- 支持 `nprobe` / `ef` 等参数调整。
+- 输出 QPS、P50/P95/P99、内存和索引构建耗时。
+
+## W4-T3: Qdrant vs Weaviate 选型 POC
+
+计划交付：
+
+- 同一批 1M 向量分别写入 Qdrant 和 Weaviate。
+- 各执行 1000 次检索。
+- 对比延迟、内存、过滤能力和开发体验。
+- 演示 Qdrant payload filter 与 Weaviate GraphQL API。
+
+## W4-T4: 分块策略对比
+
+计划交付：
+
+- 固定长度、语义切块、父子切块三种策略。
+- 对同一份 RFC 建索引并执行固定查询集。
+- 计算 Recall@5。
+- 输出策略对比表和错误样例。
+
+## W4-T5: Embedding 选型
+
+计划交付：
+
+- 对 BGE-M3 与 OpenAI `text-embedding-3` 系列进行对比。
+- 覆盖多语言、维度、成本、部署方式。
+- 使用 MTEB 子集和团队真实 QA 对评测。
+- 输出推荐结论和适用场景。

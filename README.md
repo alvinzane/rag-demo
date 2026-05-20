@@ -68,6 +68,8 @@ uv run rag-demo t1 chat --persist ./.rag/index
 
 规划文档见 [docs/PROJECT_PLAN.md](docs/PROJECT_PLAN.md)。
 
+完整交付和演示手册见 [docs/DETAILED_GUIDE.md](docs/DETAILED_GUIDE.md)。
+
 ## W4-T2 Milvus 1M Benchmark
 
 启动 Milvus、etcd、MinIO 和 Attu：

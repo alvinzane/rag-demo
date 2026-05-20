@@ -64,12 +64,26 @@
 
 ## W4-T3: Qdrant vs Weaviate 选型 POC
 
-计划交付：
+已交付：
 
-- 同一批 1M 向量分别写入 Qdrant 和 Weaviate。
-- 各执行 1000 次检索。
-- 对比延迟、内存、过滤能力和开发体验。
-- 演示 Qdrant payload filter 与 Weaviate GraphQL API。
+- `docker-compose up -d qdrant weaviate` 启动两个候选向量库。
+- `rag-demo t3 doctor` 检查 Docker、Qdrant、Weaviate 和 GraphQL 端点。
+- `rag-demo t3 load` 用同一 seed 流式生成 1M 向量，并写入 Qdrant 与 Weaviate。
+- `rag-demo t3 bench` 对单个库执行检索压测。
+- `rag-demo t3 compare` 对两个库各跑 1000 次同等过滤检索，输出 QPS、P50/P95/P99、内存。
+- `rag-demo t3 notes` 展示 Rust 内核、GraphQL API、Payload/where 过滤和开发体验差异。
+
+关键点：
+
+- Qdrant：Rust 内核，JSON search API，payload filter 使用 `must` 条件。
+- Weaviate：schema-first，GraphQL `nearVector` + `where`，显式 `vectorizer: none`。
+- 数据集：确定性合成向量，按 batch 生成，避免一次性在 Python 进程中持有 1M x 768。
+
+验收：
+
+- 可用小数据快速 smoke test。
+- 可扩展到 1M 条向量、1000 次检索。
+- 产出 JSON 报告，用于课堂横向选型讨论。
 
 ## W4-T4: 分块策略对比
 

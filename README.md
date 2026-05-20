@@ -12,6 +12,7 @@
 
 - W4-T1：用 Ollama 对 Markdown 目录建立 RAG 索引，并提供一次性问答和交互式问答。
 - W4-T2：用 Milvus Standalone + Attu 做 1M 向量压测，并用 bpftrace 做 eBPF 观察。
+- W4-T3：用同一批 1M 向量对比 Qdrant 与 Weaviate 的过滤检索延迟、内存和 API 体验。
 
 ## Quick Start
 
@@ -122,3 +123,58 @@ sudo bpftrace observability/bpftrace/milvus_io.bt
 sudo bpftrace observability/bpftrace/milvus_tcp.bt
 sudo bpftrace observability/bpftrace/milvus_syscalls.bt
 ```
+
+## W4-T3 Qdrant vs Weaviate POC
+
+启动 Qdrant 和 Weaviate：
+
+```bash
+docker-compose up -d qdrant weaviate
+```
+
+检查环境：
+
+```bash
+uv run rag-demo t3 doctor
+```
+
+课堂快速验证：
+
+```bash
+uv run rag-demo t3 load --backend both --count 10000 --dim 128 --batch-size 1000 --reset
+uv run rag-demo t3 compare --runs 50 --dim 128 --top-k 10
+uv run rag-demo t3 notes
+```
+
+完整 1M POC：
+
+```bash
+uv run rag-demo t3 load \
+  --backend both \
+  --count 1000000 \
+  --dim 768 \
+  --batch-size 5000 \
+  --reset \
+  --report .rag/t3/load_report.json
+
+uv run rag-demo t3 compare \
+  --runs 1000 \
+  --dim 768 \
+  --top-k 10 \
+  --filtered \
+  --report .rag/t3/compare_report.json
+```
+
+单库调试：
+
+```bash
+uv run rag-demo t3 bench --backend qdrant --runs 1000 --dim 768
+uv run rag-demo t3 bench --backend weaviate --runs 1000 --dim 768
+```
+
+演示点：
+
+- Qdrant 使用 Rust 内核，HTTP JSON search API，payload filter 采用 `must` 条件。
+- Weaviate 使用 schema-first 数据模型，检索通过 GraphQL `nearVector` + `where`。
+- 报告输出 QPS、P50/P95/P99、容器内存和 API 类型，便于课堂选型讨论。
+- Weaviate 映射到宿主机 `8081`，避免和常见本地 `8080` 服务冲突。

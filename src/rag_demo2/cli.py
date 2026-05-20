@@ -32,14 +32,36 @@ from rag_demo2.milvus_bench import (
     write_report,
 )
 from rag_demo2.ollama import check_ollama
+from rag_demo2.qdrant_weaviate import (
+    DEFAULT_QDRANT_HOST,
+    DEFAULT_QDRANT_PORT,
+    DEFAULT_T3_COLLECTION,
+    DEFAULT_WEAVIATE_HOST,
+    DEFAULT_WEAVIATE_PORT,
+    Backend,
+    LoadResult,
+    PocBenchResult,
+    benchmark_backend,
+    experience_notes,
+    load_backend,
+    weaviate_graphql_query,
+)
+from rag_demo2.qdrant_weaviate import (
+    runtime_checks as t3_runtime_checks,
+)
+from rag_demo2.qdrant_weaviate import (
+    write_report as write_t3_report,
+)
 from rag_demo2.rag import ask_question, build_index, read_metadata
 
 console = Console()
 app = typer.Typer(help="RAG and vector database learning demos.", no_args_is_help=True)
 t1_app = typer.Typer(help="W4-T1 LangChain RAG Hello World.", no_args_is_help=True)
 t2_app = typer.Typer(help="W4-T2 Milvus standalone 1M vector benchmark.", no_args_is_help=True)
+t3_app = typer.Typer(help="W4-T3 Qdrant vs Weaviate selection POC.", no_args_is_help=True)
 app.add_typer(t1_app, name="t1")
 app.add_typer(t2_app, name="t2")
+app.add_typer(t3_app, name="t3")
 
 
 def version_callback(value: bool) -> None:
@@ -482,11 +504,204 @@ def t2_observe() -> None:
     console.print("[yellow]Run bpftrace in one terminal and rag-demo t2 bench in another.[/yellow]")
 
 
+@t3_app.command("doctor")
+def t3_doctor(
+    qdrant_host: Annotated[str, typer.Option(help="Qdrant host.")] = DEFAULT_QDRANT_HOST,
+    qdrant_port: Annotated[int, typer.Option(help="Qdrant HTTP port.")] = DEFAULT_QDRANT_PORT,
+    weaviate_host: Annotated[str, typer.Option(help="Weaviate host.")] = DEFAULT_WEAVIATE_HOST,
+    weaviate_port: Annotated[int, typer.Option(help="Weaviate HTTP port.")] = DEFAULT_WEAVIATE_PORT,
+) -> None:
+    """Check Docker, Qdrant, Weaviate, and GraphQL readiness."""
+    table = Table(title="W4-T3 Qdrant vs Weaviate Doctor")
+    table.add_column("Check")
+    table.add_column("Status")
+    table.add_column("Detail")
+    for check in t3_runtime_checks(qdrant_host, qdrant_port, weaviate_host, weaviate_port):
+        table.add_row(check.name, "OK" if check.ok else "Missing", check.detail)
+    console.print(table)
+    console.print("[cyan]Start stack:[/cyan] docker-compose up -d qdrant weaviate")
+    console.print("[cyan]Qdrant:[/cyan] http://localhost:6333/dashboard")
+    console.print("[cyan]Weaviate GraphQL:[/cyan] http://localhost:8081/v1/graphql")
+
+
+@t3_app.command("load")
+def t3_load(
+    backend: Annotated[str, typer.Option(help="qdrant, weaviate, or both.")] = "both",
+    collection: Annotated[str, typer.Option(help="Collection/class name.")] = DEFAULT_T3_COLLECTION,
+    count: Annotated[int, typer.Option(help="Synthetic vector count.")] = DEFAULT_COUNT,
+    dim: Annotated[int, typer.Option(help="Vector dimension.")] = DEFAULT_DIM,
+    batch_size: Annotated[int, typer.Option(help="Insert batch size.")] = DEFAULT_BATCH_SIZE,
+    seed: Annotated[int, typer.Option(help="Deterministic random seed.")] = DEFAULT_SEED,
+    reset: Annotated[bool, typer.Option(help="Drop and recreate collection/class first.")] = False,
+    qdrant_host: Annotated[str, typer.Option(help="Qdrant host.")] = DEFAULT_QDRANT_HOST,
+    qdrant_port: Annotated[int, typer.Option(help="Qdrant HTTP port.")] = DEFAULT_QDRANT_PORT,
+    weaviate_host: Annotated[str, typer.Option(help="Weaviate host.")] = DEFAULT_WEAVIATE_HOST,
+    weaviate_port: Annotated[int, typer.Option(help="Weaviate HTTP port.")] = DEFAULT_WEAVIATE_PORT,
+    report: Annotated[Path | None, typer.Option(help="Optional JSON report path.")] = None,
+) -> None:
+    """Load the same deterministic vectors and payloads into Qdrant/Weaviate."""
+    backends = _t3_backends(backend)
+    results = []
+    try:
+        for item in backends:
+            with Progress(
+                SpinnerColumn(),
+                TextColumn(f"[progress.description]Loading {item} vectors..."),
+                console=console,
+                transient=True,
+            ) as progress:
+                progress.add_task("load", total=None)
+                results.append(
+                    load_backend(
+                        item,
+                        count=count,
+                        dim=dim,
+                        batch_size=batch_size,
+                        seed=seed,
+                        reset=reset,
+                        collection=collection,
+                        qdrant_host=qdrant_host,
+                        qdrant_port=qdrant_port,
+                        weaviate_host=weaviate_host,
+                        weaviate_port=weaviate_port,
+                    )
+                )
+        if report:
+            write_t3_report(report, results)
+    except Exception as exc:
+        console.print(f"[red]Load failed:[/red] {exc}")
+        console.print("[cyan]Next:[/cyan] docker-compose up -d qdrant weaviate")
+        raise typer.Exit(1) from exc
+    _print_t3_load_results(results)
+    if report:
+        console.print(f"[cyan]Report:[/cyan] {report}")
+
+
+@t3_app.command("bench")
+def t3_bench(
+    backend: Annotated[str, typer.Option(help="qdrant or weaviate.")] = "qdrant",
+    collection: Annotated[str, typer.Option(help="Collection/class name.")] = DEFAULT_T3_COLLECTION,
+    runs: Annotated[int, typer.Option(help="Number of searches.")] = 1_000,
+    dim: Annotated[int, typer.Option(help="Vector dimension.")] = DEFAULT_DIM,
+    top_k: Annotated[int, typer.Option("--top-k", help="Search top K.")] = 10,
+    seed: Annotated[int, typer.Option(help="Deterministic random seed.")] = DEFAULT_SEED,
+    filtered: Annotated[bool, typer.Option(help="Apply equivalent payload/where filter.")] = True,
+    qdrant_host: Annotated[str, typer.Option(help="Qdrant host.")] = DEFAULT_QDRANT_HOST,
+    qdrant_port: Annotated[int, typer.Option(help="Qdrant HTTP port.")] = DEFAULT_QDRANT_PORT,
+    weaviate_host: Annotated[str, typer.Option(help="Weaviate host.")] = DEFAULT_WEAVIATE_HOST,
+    weaviate_port: Annotated[int, typer.Option(help="Weaviate HTTP port.")] = DEFAULT_WEAVIATE_PORT,
+    report: Annotated[Path | None, typer.Option(help="Optional JSON report path.")] = None,
+) -> None:
+    """Run 1000 filtered searches against one backend."""
+    selected = _t3_backend(backend)
+    try:
+        result = benchmark_backend(
+            selected,
+            runs=runs,
+            dim=dim,
+            top_k=top_k,
+            seed=seed,
+            filtered=filtered,
+            collection=collection,
+            qdrant_host=qdrant_host,
+            qdrant_port=qdrant_port,
+            weaviate_host=weaviate_host,
+            weaviate_port=weaviate_port,
+        )
+        if report:
+            write_t3_report(report, result)
+    except Exception as exc:
+        console.print(f"[red]Bench failed:[/red] {exc}")
+        raise typer.Exit(1) from exc
+    _print_t3_bench_results([result])
+    if report:
+        console.print(f"[cyan]Report:[/cyan] {report}")
+
+
+@t3_app.command("compare")
+def t3_compare(
+    collection: Annotated[str, typer.Option(help="Collection/class name.")] = DEFAULT_T3_COLLECTION,
+    runs: Annotated[int, typer.Option(help="Number of searches per backend.")] = 1_000,
+    dim: Annotated[int, typer.Option(help="Vector dimension.")] = DEFAULT_DIM,
+    top_k: Annotated[int, typer.Option("--top-k", help="Search top K.")] = 10,
+    seed: Annotated[int, typer.Option(help="Deterministic random seed.")] = DEFAULT_SEED,
+    filtered: Annotated[bool, typer.Option(help="Apply equivalent payload/where filter.")] = True,
+    qdrant_host: Annotated[str, typer.Option(help="Qdrant host.")] = DEFAULT_QDRANT_HOST,
+    qdrant_port: Annotated[int, typer.Option(help="Qdrant HTTP port.")] = DEFAULT_QDRANT_PORT,
+    weaviate_host: Annotated[str, typer.Option(help="Weaviate host.")] = DEFAULT_WEAVIATE_HOST,
+    weaviate_port: Annotated[int, typer.Option(help="Weaviate HTTP port.")] = DEFAULT_WEAVIATE_PORT,
+    report: Annotated[Path, typer.Option(help="JSON report path.")] = Path(
+        ".rag/t3/compare_report.json"
+    ),
+) -> None:
+    """Compare Qdrant and Weaviate with the same query workload."""
+    results: list[PocBenchResult] = []
+    try:
+        for backend in ("qdrant", "weaviate"):
+            results.append(
+                benchmark_backend(
+                    backend,
+                    runs=runs,
+                    dim=dim,
+                    top_k=top_k,
+                    seed=seed,
+                    filtered=filtered,
+                    collection=collection,
+                    qdrant_host=qdrant_host,
+                    qdrant_port=qdrant_port,
+                    weaviate_host=weaviate_host,
+                    weaviate_port=weaviate_port,
+                )
+            )
+        write_t3_report(report, results)
+    except Exception as exc:
+        console.print(f"[red]Compare failed:[/red] {exc}")
+        raise typer.Exit(1) from exc
+    _print_t3_bench_results(results)
+    console.print(f"[cyan]Report:[/cyan] {report}")
+
+
+@t3_app.command("notes")
+def t3_notes() -> None:
+    """Show API and developer-experience notes for the POC."""
+    table = Table(title="Developer Experience Notes")
+    table.add_column("Backend")
+    table.add_column("Engine")
+    table.add_column("Query API")
+    table.add_column("Filter API")
+    table.add_column("Operational Note")
+    for note in experience_notes():
+        table.add_row(
+            note.backend,
+            note.engine,
+            note.query_api,
+            note.filter_api,
+            note.operational_note,
+        )
+    console.print(table)
+    sample = weaviate_graphql_query("RagDemoT3Vector", [0.1, 0.2, 0.3], 3, "bucket-1")
+    console.print(Panel(sample, title="Weaviate GraphQL Sample", expand=False))
+
+
 def _index_type(value: str) -> str:
     normalized = value.upper()
     if normalized not in {"IVF_FLAT", "HNSW"}:
         raise typer.BadParameter("index type must be IVF_FLAT or HNSW")
     return normalized
+
+
+def _t3_backend(value: str) -> Backend:
+    normalized = value.lower()
+    if normalized not in {"qdrant", "weaviate"}:
+        raise typer.BadParameter("backend must be qdrant or weaviate")
+    return normalized  # type: ignore[return-value]
+
+
+def _t3_backends(value: str) -> list[Backend]:
+    normalized = value.lower()
+    if normalized == "both":
+        return ["qdrant", "weaviate"]
+    return [_t3_backend(normalized)]
 
 
 def _print_bench_result(result: BenchResult) -> None:
@@ -531,6 +746,54 @@ def _print_sweep_results(results: list[BenchResult], param_name: str) -> None:
             f"{result.p50_ms:.2f}",
             f"{result.p95_ms:.2f}",
             f"{result.p99_ms:.2f}",
+        )
+    console.print(table)
+
+
+def _print_t3_load_results(results: list[LoadResult]) -> None:
+    table = Table(title="Load Results")
+    table.add_column("Backend")
+    table.add_column("Rows", justify="right")
+    table.add_column("Dim", justify="right")
+    table.add_column("Batch", justify="right")
+    table.add_column("Elapsed sec", justify="right")
+    table.add_column("Memory MB", justify="right")
+    for result in results:
+        table.add_row(
+            str(result.backend),
+            str(result.rows),
+            str(result.dim),
+            str(result.batch_size),
+            f"{result.elapsed_sec:.2f}",
+            f"{result.memory_mb:.2f}",
+        )
+    console.print(table)
+
+
+def _print_t3_bench_results(results: list[PocBenchResult]) -> None:
+    table = Table(title="Qdrant vs Weaviate Benchmark")
+    table.add_column("Backend")
+    table.add_column("Rows", justify="right")
+    table.add_column("Runs", justify="right")
+    table.add_column("Filtered")
+    table.add_column("QPS", justify="right")
+    table.add_column("P50 ms", justify="right")
+    table.add_column("P95 ms", justify="right")
+    table.add_column("P99 ms", justify="right")
+    table.add_column("Memory MB", justify="right")
+    table.add_column("API")
+    for result in results:
+        table.add_row(
+            result.backend,
+            str(result.rows),
+            str(result.runs),
+            str(result.filtered),
+            f"{result.qps:.2f}",
+            f"{result.p50_ms:.2f}",
+            f"{result.p95_ms:.2f}",
+            f"{result.p99_ms:.2f}",
+            f"{result.memory_mb:.2f}",
+            result.api,
         )
     console.print(table)
 

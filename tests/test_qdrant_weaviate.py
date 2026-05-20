@@ -2,6 +2,7 @@ from rag_demo2.qdrant_weaviate import (
     _parse_memory_mb,
     experience_notes,
     qdrant_search_payload,
+    weaviate_class_name,
     weaviate_graphql_query,
 )
 
@@ -24,6 +25,11 @@ def test_weaviate_graphql_query_contains_near_vector_and_where() -> None:
     assert "limit: 5" in query
     assert 'path: ["bucket"]' in query
     assert 'valueText: "bucket-1"' in query
+
+
+def test_weaviate_class_name_converts_collection_name() -> None:
+    assert weaviate_class_name("rag_demo_t3_vectors") == "RagDemoT3Vectors"
+    assert weaviate_class_name("RagDemoT3Vector") == "RagDemoT3Vector"
 
 
 def test_parse_memory_mb_handles_docker_units() -> None:

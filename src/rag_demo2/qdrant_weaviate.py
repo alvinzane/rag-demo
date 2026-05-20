@@ -147,8 +147,9 @@ def load_backend(
         rows = _load_qdrant(base_url, collection, count, dim, batch_size, seed)
     elif backend == "weaviate":
         base_url = weaviate_url(weaviate_host, weaviate_port)
-        _prepare_weaviate_class(base_url, collection, dim, reset)
-        rows = _load_weaviate(base_url, collection, count, dim, batch_size, seed)
+        class_name = weaviate_class_name(collection)
+        _prepare_weaviate_class(base_url, class_name, dim, reset)
+        rows = _load_weaviate(base_url, class_name, count, dim, batch_size, seed)
     else:
         raise ValueError(f"Unsupported backend: {backend}")
 
@@ -195,11 +196,12 @@ def benchmark_backend(
         api = "REST /collections/{collection}/points/search"
     elif backend == "weaviate":
         base_url = weaviate_url(weaviate_host, weaviate_port)
-        rows = _weaviate_count(base_url, collection)
+        class_name = weaviate_class_name(collection)
+        rows = _weaviate_count(base_url, class_name)
         for index, query in enumerate(queries):
             bucket = _bucket(index) if filtered else None
             query_started = time.perf_counter()
-            _search_weaviate(base_url, collection, query.tolist(), top_k, bucket)
+            _search_weaviate(base_url, class_name, query.tolist(), top_k, bucket)
             latencies_ms.append((time.perf_counter() - query_started) * 1000)
         api = "GraphQL nearVector + where"
     else:
@@ -256,6 +258,14 @@ def write_report(path: Path, payload: Any) -> None:
 
 def container_name(backend: Backend) -> str:
     return f"rag-demo2-{backend}"
+
+
+def weaviate_class_name(collection: str) -> str:
+    if collection and collection[0].isupper() and "_" not in collection:
+        return collection
+    parts = re.findall(r"[A-Za-z0-9]+", collection)
+    class_name = "".join(part[:1].upper() + part[1:] for part in parts)
+    return class_name or DEFAULT_WEAVIATE_CLASS
 
 
 def weaviate_graphql_query(
@@ -460,6 +470,9 @@ def _weaviate_count(base_url: str, class_name: str) -> int:
         timeout=60,
     )
     data = response.json()
+    if "errors" in data:
+        message = data["errors"][0].get("message", data["errors"][0])
+        raise RuntimeError(f"Weaviate GraphQL count failed: {message}")
     return int(data["data"]["Aggregate"][class_name][0]["meta"]["count"])
 
 

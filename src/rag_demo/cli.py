@@ -9,8 +9,8 @@ from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
-from rag_demo2 import __version__
-from rag_demo2.chunking_recall import (
+from rag_demo import __version__
+from rag_demo.chunking_recall import (
     DEFAULT_RFC_PATH,
     DEFAULT_T4_QUERIES,
     DEFAULT_T4_REPORT,
@@ -30,11 +30,11 @@ from rag_demo2.chunking_recall import (
     strategy_retrieve,
     write_queries,
 )
-from rag_demo2.chunking_recall import (
+from rag_demo.chunking_recall import (
     write_report as write_t4_report,
 )
-from rag_demo2.config import DEFAULT_COLLECTION, model_config
-from rag_demo2.embedding_selection import (
+from rag_demo.config import DEFAULT_COLLECTION, model_config
+from rag_demo.embedding_selection import (
     DEFAULT_OPENAI_BASE_URL,
     DEFAULT_T5_CACHE,
     DEFAULT_T5_DATASET,
@@ -45,13 +45,13 @@ from rag_demo2.embedding_selection import (
     evaluate_embeddings,
     parse_candidates,
 )
-from rag_demo2.embedding_selection import (
+from rag_demo.embedding_selection import (
     read_report as read_t5_report,
 )
-from rag_demo2.embedding_selection import (
+from rag_demo.embedding_selection import (
     write_report as write_t5_report,
 )
-from rag_demo2.milvus_bench import (
+from rag_demo.milvus_bench import (
     DEFAULT_ATTU_HOST,
     DEFAULT_ATTU_PORT,
     DEFAULT_BATCH_SIZE,
@@ -71,8 +71,8 @@ from rag_demo2.milvus_bench import (
     sweep_benchmark,
     write_report,
 )
-from rag_demo2.ollama import check_ollama
-from rag_demo2.qdrant_weaviate import (
+from rag_demo.ollama import check_ollama
+from rag_demo.qdrant_weaviate import (
     DEFAULT_QDRANT_HOST,
     DEFAULT_QDRANT_PORT,
     DEFAULT_T3_COLLECTION,
@@ -86,13 +86,13 @@ from rag_demo2.qdrant_weaviate import (
     load_backend,
     weaviate_graphql_query,
 )
-from rag_demo2.qdrant_weaviate import (
+from rag_demo.qdrant_weaviate import (
     runtime_checks as t3_runtime_checks,
 )
-from rag_demo2.qdrant_weaviate import (
+from rag_demo.qdrant_weaviate import (
     write_report as write_t3_report,
 )
-from rag_demo2.rag import ask_question, build_index, read_metadata
+from rag_demo.rag import ask_question, build_index, read_metadata
 
 console = Console()
 app = typer.Typer(help="RAG and vector database learning demos.", no_args_is_help=True)

@@ -2,7 +2,7 @@ from pathlib import Path
 
 import numpy as np
 
-from rag_demo2.milvus_bench import (
+from rag_demo.milvus_bench import (
     generate_vectors,
     index_params,
     percentile,

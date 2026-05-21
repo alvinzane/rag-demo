@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from rag_demo2.embedding_selection import (
+from rag_demo.embedding_selection import (
     DEFAULT_CANDIDATES,
     SAMPLE_CASES,
     evaluate_embeddings,

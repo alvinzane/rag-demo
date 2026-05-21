@@ -32,7 +32,7 @@ from rag_demo.milvus_bench import (
     write_report,
 )
 from rag_demo.ollama import check_ollama
-from rag_demo.rag import ask_question, build_index, read_metadata
+from rag_demo.rag import ask_question, build_index, read_metadata, stream_question
 
 console = Console()
 app = typer.Typer(help="RAG and vector database learning demos.", no_args_is_help=True)
@@ -208,9 +208,25 @@ def t1_chat(
         question = typer.prompt("Question")
         if question.strip().lower() in {"/exit", "exit", "quit", ":q"}:
             break
-        answer = ask_question(question, persist, config, top_k=top_k)
-        console.print(Panel(answer.text, title="Answer", expand=False))
-        _print_sources(answer.sources)
+        try:
+            chunks, sources, _contexts = stream_question(question, persist, config, top_k=top_k)
+        except FileNotFoundError as exc:
+            console.print(f"[red]Index not found:[/red] {exc}")
+            console.print("[cyan]Next:[/cyan] rag-demo t1 index --docs <markdown-dir>")
+            raise typer.Exit(1) from exc
+        except Exception as exc:
+            console.print(f"[red]Ask failed:[/red] {exc}")
+            raise typer.Exit(1) from exc
+
+        console.print("[bold]Answer[/bold]")
+        try:
+            for chunk in chunks:
+                console.print(chunk, end="", markup=False, highlight=False, soft_wrap=True)
+            console.print()
+        except Exception as exc:
+            console.print(f"\n[red]Ask failed:[/red] {exc}")
+            raise typer.Exit(1) from exc
+        _print_sources(sources)
 
 
 @t1_app.command("inspect")

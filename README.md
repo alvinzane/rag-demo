@@ -24,11 +24,12 @@
 uv sync
 ```
 
-默认使用远端 Ollama `http://192.168.1.18:11434`：
+默认代码会使用本机 `http://localhost:11434`、`llama3.1` 和 `nomic-embed-text`。课堂环境使用远端 Ollama：
 
 ```bash
-chat: deepseek-v4-pro:cloud
-embedding: qwen3-embedding:latest
+export OLLAMA_HOST=http://192.168.1.18:11434
+export RAG_DEMO_CHAT_MODEL=deepseek-v4-pro:cloud
+export RAG_DEMO_EMBED_MODEL=qwen3-embedding:latest
 ```
 
 检查环境：
@@ -37,31 +38,27 @@ embedding: qwen3-embedding:latest
 uv run rag-demo doctor
 ```
 
-索引 Markdown 目录：
+如果没有设置 `RAG_DEMO_EMBED_MODEL`，索引会使用默认的 `nomic-embed-text`。远端 Ollama 没有该模型时会报 `model "nomic-embed-text" not found`。
 
-```bash
-uv run rag-demo t1 index --docs ./confluence-export --persist ./.rag/index
-```
-
-可以重复 `--docs` 一次索引多个 Markdown 目录：
+索引 main 分支的一本 ebook：
 
 ```bash
 uv run rag-demo t1 index \
-  --docs /home/ubuntu/workspace/easylearning/ez-cli/docs/beyond-vibe-coding \
-  --docs /home/ubuntu/workspace/easylearning/ez-cli/docs/beyond-vibe-coding-cn \
-  --persist ./.rag/beyond-vibe
+  --docs ../rag-demo/ebooks/beyond-vibe-coding-cn \
+  --persist ./.rag/ebooks \
+  --reset
 ```
 
 问答：
 
 ```bash
-uv run rag-demo t1 ask "团队的发布流程是什么？" --persist ./.rag/index
+uv run rag-demo t1 ask "什么是 Vibe 编程？它和 AI 辅助工程有什么区别？" --persist ./.rag/ebooks
 ```
 
 交互式问答：
 
 ```bash
-uv run rag-demo t1 chat --persist ./.rag/index
+uv run rag-demo t1 chat --persist ./.rag/ebooks
 ```
 
 ## Worktree
@@ -200,29 +197,46 @@ uv run rag-demo t4 evaluate
 .rag/t4/recall_report.json
 ```
 
-使用真实 RFC：
+使用 main 分支的一本 ebook 做真实文档评测。`t4 evaluate` 的 `--rfc` 接受单个 Markdown/text 文件，先把 ebook 目录按路径排序后合并：
+
+```bash
+mkdir -p .rag/t4
+find ../rag-demo/ebooks/beyond-vibe-coding-cn \
+  -type f -name '*.md' | sort | while IFS= read -r path; do
+    printf '\n\n<!-- source: %s -->\n\n' "$path"
+    sed 's/[[:space:]]*$//' "$path"
+  done > .rag/t4/ebooks.md
+```
+
+使用合并后的 ebook：
 
 ```bash
 uv run rag-demo t4 evaluate \
-  --rfc ./docs/rfc9000.md \
+  --rfc .rag/t4/ebooks.md \
   --chunk-size 800 \
   --chunk-overlap 120 \
   --top-k 5
 ```
 
-先从 RFC 标题自动生成可编辑查询集，再用人工标注后的查询集评测：
+人工维护一份查询集，`expected_section_id` 来自上面确定性合并后的标题顺序：
 
 ```bash
-uv run rag-demo t4 queries --rfc ./docs/rfc9000.md --output .rag/t4/rfc9000_queries.jsonl
-uv run rag-demo t4 evaluate --rfc ./docs/rfc9000.md --queries .rag/t4/rfc9000_queries.jsonl
+mkdir -p .rag/t4
+cat > .rag/t4/ebook_queries.jsonl <<'JSONL'
+{"query":"什么是 Vibe 编程？它和 AI 辅助工程有什么区别？","expected_section_id":"s0","expected_section_title":"第1章 简介：什么是Vibe编程？"}
+{"query":"70% 问题指的是什么？最后 30% 为什么仍然需要人类工程判断？","expected_section_id":"s13","expected_section_title":"第3章 70%问题：真正有效的AI辅助工作流程"}
+{"query":"AI 生成代码常见的安全风险有哪些？应该如何审查？","expected_section_id":"s117","expected_section_title":"第8章 安全性、可维护性和可靠性"}
+JSONL
+
+uv run rag-demo t4 evaluate --rfc .rag/t4/ebooks.md --queries .rag/t4/ebook_queries.jsonl
 ```
 
 查看单条问题在不同策略下的检索结果：
 
 ```bash
-uv run rag-demo t4 ask "What does the RFC say about flow control?" --strategy fixed
-uv run rag-demo t4 ask "What does the RFC say about flow control?" --strategy semantic
-uv run rag-demo t4 ask "What does the RFC say about flow control?" --strategy parent-child
+uv run rag-demo t4 ask "70% 问题指的是什么？最后 30% 为什么仍然需要人类工程判断？" --rfc .rag/t4/ebooks.md --strategy fixed
+uv run rag-demo t4 ask "70% 问题指的是什么？最后 30% 为什么仍然需要人类工程判断？" --rfc .rag/t4/ebooks.md --strategy semantic
+uv run rag-demo t4 ask "70% 问题指的是什么？最后 30% 为什么仍然需要人类工程判断？" --rfc .rag/t4/ebooks.md --strategy parent-child
 ```
 
 演示点：
@@ -239,10 +253,15 @@ uv run rag-demo t4 ask "What does the RFC say about flow control?" --strategy pa
 uv run rag-demo t5 evaluate
 ```
 
-生成可编辑的 MTEB-style + 团队真实 QA JSONL：
+生成可编辑的 ebook QA JSONL，字段沿用 `id`、`query`、`positive`、`negatives`、`language`、`source`：
 
 ```bash
-uv run rag-demo t5 sample-data --output .rag/t5/team_qa.jsonl
+mkdir -p .rag/t5
+cat > .rag/t5/ebook_qa.jsonl <<'JSONL'
+{"id":"ebook-vibe-vs-engineering","query":"什么是 Vibe 编程？它和 AI 辅助工程有什么区别？","positive":"Vibe 编程通过自然语言描述目标，让 LLM 生成和迭代代码，目标偏速度和探索，但需要人类监督。AI 辅助工程计划优先，先定义约束、接口和验收标准，再用 AI 加速实现、测试和审查。","negatives":["70% 问题指 AI 能快速完成大部分实现，但边缘情况、架构、可维护性、安全和产品质量仍依赖人类。","AI 生成代码的安全审查要重点检查硬编码密钥、SQL 注入、XSS、认证授权、不安全默认配置、敏感错误信息和依赖风险。"],"language":"zh","source":"ebook"}
+{"id":"ebook-70-percent","query":"70% 问题指的是什么？最后 30% 为什么仍然需要人类工程判断？","positive":"70% 问题指 AI 擅长样板和常见路径，能快速完成大部分实现；边缘情况、架构、可维护性、安全和产品质量仍依赖人类。有效 AI 工作流可以把 AI 用作初稿撰写者、配对编程员和验证者。","negatives":["Vibe 编程通过自然语言描述目标，让 LLM 生成和迭代代码，目标偏速度和探索，但需要人类监督。","AI 辅助工程计划优先，先定义约束、接口和验收标准，再用 AI 加速实现、测试和审查。"],"language":"zh","source":"ebook"}
+{"id":"ebook-ai-code-security","query":"AI 生成代码常见的安全风险有哪些？应该如何审查？","positive":"AI 生成代码的安全审查要重点检查硬编码密钥、SQL 注入、XSS、认证授权、不安全默认配置、敏感错误信息和依赖风险。","negatives":["Vibe 编程通过自然语言描述目标，让 LLM 生成和迭代代码，目标偏速度和探索。","70% 问题说明边缘情况、架构、可维护性、安全和产品质量仍依赖人类工程判断。"],"language":"zh","source":"ebook"}
+JSONL
 ```
 
 真实评测 BGE-M3 和 OpenAI text-embedding-3：
@@ -252,7 +271,7 @@ export OPENAI_API_KEY=...
 
 uv run rag-demo t5 evaluate \
   --real \
-  --dataset .rag/t5/team_qa.jsonl \
+  --dataset .rag/t5/ebook_qa.jsonl \
   --models bge-m3,text-embedding-3-small,text-embedding-3-large \
   --ollama-base-url http://192.168.1.18:11434 \
   --report .rag/t5/embedding_report.json

@@ -37,31 +37,25 @@ embedding: qwen3-embedding:latest
 uv run rag-demo doctor
 ```
 
-索引 Markdown 目录：
-
-```bash
-uv run rag-demo t1 index --docs ./confluence-export --persist ./.rag/index
-```
-
-可以重复 `--docs` 一次索引多个 Markdown 目录：
+索引 main 分支的一本 ebook：
 
 ```bash
 uv run rag-demo t1 index \
-  --docs /home/ubuntu/workspace/easylearning/ez-cli/docs/beyond-vibe-coding \
-  --docs /home/ubuntu/workspace/easylearning/ez-cli/docs/beyond-vibe-coding-cn \
-  --persist ./.rag/beyond-vibe
+  --docs ../rag-demo/ebooks/beyond-vibe-coding-cn \
+  --persist ./.rag/ebooks \
+  --reset
 ```
 
 问答：
 
 ```bash
-uv run rag-demo t1 ask "团队的发布流程是什么？" --persist ./.rag/index
+uv run rag-demo t1 ask "什么是 Vibe 编程？它和 AI 辅助工程有什么区别？" --persist ./.rag/ebooks
 ```
 
 交互式问答：
 
 ```bash
-uv run rag-demo t1 chat --persist ./.rag/index
+uv run rag-demo t1 chat --persist ./.rag/ebooks
 ```
 
 ## Worktree

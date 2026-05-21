@@ -11,8 +11,8 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_ollama import ChatOllama, OllamaEmbeddings
 
-from rag_demo2.config import DEFAULT_COLLECTION, ModelConfig
-from rag_demo2.documents import load_markdown_documents, split_documents
+from rag_demo.config import DEFAULT_COLLECTION, ModelConfig
+from rag_demo.documents import load_markdown_documents, split_documents
 
 META_FILE = "index_meta.json"
 

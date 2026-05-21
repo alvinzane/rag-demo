@@ -9,10 +9,10 @@ from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
-from rag_demo2 import __version__
-from rag_demo2.config import DEFAULT_COLLECTION, model_config
-from rag_demo2.ollama import check_ollama
-from rag_demo2.rag import ask_question, build_index, read_metadata
+from rag_demo import __version__
+from rag_demo.config import DEFAULT_COLLECTION, model_config
+from rag_demo.ollama import check_ollama
+from rag_demo.rag import ask_question, build_index, read_metadata
 
 console = Console()
 app = typer.Typer(help="RAG and vector database learning demos.", no_args_is_help=True)

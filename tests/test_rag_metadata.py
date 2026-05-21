@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from rag_demo2.rag import IndexMetadata, read_metadata, write_metadata
+from rag_demo.rag import IndexMetadata, read_metadata, write_metadata
 
 
 def test_metadata_roundtrip(tmp_path: Path) -> None:

@@ -1,5 +1,5 @@
 [project]
-name = "rag-demo2"
+name = "rag-demo"
 version = "0.1.0"
 description = "A progressive RAG and vector database demo CLI for team learning."
 readme = "README.md"
@@ -17,7 +17,7 @@ dependencies = [
 ]
 
 [project.scripts]
-rag-demo = "rag_demo2.cli:app"
+rag-demo = "rag_demo.cli:app"
 
 [dependency-groups]
 dev = [

@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from rag_demo2.chunking_recall import (
+from rag_demo.chunking_recall import (
     HashingEmbedder,
     build_chunks,
     evaluate_strategies,

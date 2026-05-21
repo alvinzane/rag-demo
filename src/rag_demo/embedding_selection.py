@@ -11,7 +11,7 @@ from pathlib import Path
 import numpy as np
 import requests
 
-from rag_demo2.config import DEFAULT_OLLAMA_BASE_URL
+from rag_demo.config import DEFAULT_OLLAMA_BASE_URL
 
 DEFAULT_T5_DATASET = Path("docs/sample_embedding_eval.jsonl")
 DEFAULT_T5_REPORT = Path(".rag/t5/embedding_report.json")

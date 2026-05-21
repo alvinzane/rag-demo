@@ -46,7 +46,7 @@ uv run rag-demo t1 index \
 *.markdown
 ```
 
-对应代码在 `src/rag_demo2/documents.py`：
+对应代码在 `src/rag_demo/documents.py`：
 
 ```text
 discover_markdown_files()

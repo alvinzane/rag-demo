@@ -1,4 +1,4 @@
-# RAG Demo 2
+# RAG Demo
 
 一个面向分享和学习的 RAG / 向量数据库 CLI demo。项目按 5 个连续目标推进：
 

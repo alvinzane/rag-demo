@@ -1,4 +1,4 @@
-from rag_demo2.qdrant_weaviate import (
+from rag_demo.qdrant_weaviate import (
     _parse_memory_mb,
     experience_notes,
     qdrant_search_payload,

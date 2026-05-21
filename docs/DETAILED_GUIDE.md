@@ -1,12 +1,12 @@
-# RAG Demo 2 完整交付文档
+# RAG Demo 完整交付文档
 
-本文档是 `rag-demo2` 的完整运行和讲解手册，面向团队分享、课堂演示和后续二次开发。
+本文档是 `rag-demo` 的完整运行和讲解手册，面向团队分享、课堂演示和后续二次开发。
 
 项目目标是用一个可执行的现代 Python CLI，把 RAG 基础、向量数据库压测、向量库选型、分块策略和 Embedding 选型串成 5 个连续 demo。
 
 ## 1. 项目概览
 
-`rag-demo2` 覆盖 5 个目标：
+`rag-demo` 覆盖 5 个目标：
 
 | 目标 | 主题 | 交付命令组 | 关键学习点 |
 | --- | --- | --- | --- |
@@ -62,7 +62,7 @@ OpenAI: text-embedding-3-small / text-embedding-3-large
 ## 3. 仓库结构
 
 ```text
-rag-demo2/
+rag-demo/
 ├── README.md
 ├── docker-compose.yml
 ├── pyproject.toml
@@ -78,7 +78,7 @@ rag-demo2/
 │       ├── milvus_syscalls.bt
 │       └── milvus_tcp.bt
 ├── src/
-│   └── rag_demo2/
+│   └── rag_demo/
 │       ├── cli.py
 │       ├── config.py
 │       ├── documents.py
@@ -114,11 +114,11 @@ rag-demo2/
 
 | 目标 | 分支 | Worktree |
 | --- | --- | --- |
-| W4-T1 | `w4-t1-langchain-rag` | `../rag-demo2-w4-t1` |
-| W4-T2 | `w4-t2-milvus-1m-benchmark` | `../rag-demo2-w4-t2` |
-| W4-T3 | `w4-t3-qdrant-weaviate-poc` | `../rag-demo2-w4-t3` |
-| W4-T4 | `w4-t4-chunking-recall` | `../rag-demo2-w4-t4` |
-| W4-T5 | `w4-t5-embedding-selection` | `../rag-demo2-w4-t5` |
+| W4-T1 | `w4-t1-langchain-rag` | `../rag-demo-w4-t1` |
+| W4-T2 | `w4-t2-milvus-1m-benchmark` | `../rag-demo-w4-t2` |
+| W4-T3 | `w4-t3-qdrant-weaviate-poc` | `../rag-demo-w4-t3` |
+| W4-T4 | `w4-t4-chunking-recall` | `../rag-demo-w4-t4` |
+| W4-T5 | `w4-t5-embedding-selection` | `../rag-demo-w4-t5` |
 
 查看 worktree：
 
@@ -129,7 +129,7 @@ git worktree list
 进入最终完整版本：
 
 ```bash
-cd /home/ubuntu/workspace/easylearning/rag-demo2-w4-t5
+cd /home/ubuntu/workspace/easylearning/rag-demo-w4-t5
 ```
 
 查看提交链：
@@ -156,7 +156,7 @@ uv run rag-demo doctor
 默认配置来自：
 
 ```text
-src/rag_demo2/config.py
+src/rag_demo/config.py
 ```
 
 也可以用环境变量覆盖：

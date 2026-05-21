@@ -12,11 +12,11 @@
 
 | 目标 | 分支 | Worktree |
 | --- | --- | --- |
-| W4-T1 | `w4-t1-langchain-rag` | `../rag-demo2-w4-t1` |
-| W4-T2 | `w4-t2-milvus-1m-benchmark` | `../rag-demo2-w4-t2` |
-| W4-T3 | `w4-t3-qdrant-weaviate-poc` | `../rag-demo2-w4-t3` |
-| W4-T4 | `w4-t4-chunking-recall` | `../rag-demo2-w4-t4` |
-| W4-T5 | `w4-t5-embedding-selection` | `../rag-demo2-w4-t5` |
+| W4-T1 | `w4-t1-langchain-rag` | `../rag-demo-w4-t1` |
+| W4-T2 | `w4-t2-milvus-1m-benchmark` | `../rag-demo-w4-t2` |
+| W4-T3 | `w4-t3-qdrant-weaviate-poc` | `../rag-demo-w4-t3` |
+| W4-T4 | `w4-t4-chunking-recall` | `../rag-demo-w4-t4` |
+| W4-T5 | `w4-t5-embedding-selection` | `../rag-demo-w4-t5` |
 
 ## W4-T1: LangChain RAG Hello World
 

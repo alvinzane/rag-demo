@@ -2898,7 +2898,7 @@ wheels = [
 ]
 
 [[package]]
-name = "rag-demo2"
+name = "rag-demo"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [

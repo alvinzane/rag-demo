@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from rag_demo2.documents import discover_markdown_files, load_markdown_documents, split_documents
+from rag_demo.documents import discover_markdown_files, load_markdown_documents, split_documents
 
 
 def test_discover_markdown_files(tmp_path: Path) -> None:

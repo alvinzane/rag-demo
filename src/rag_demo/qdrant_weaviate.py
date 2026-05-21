@@ -13,7 +13,7 @@ from uuid import UUID
 import psutil
 import requests
 
-from rag_demo2.milvus_bench import (
+from rag_demo.milvus_bench import (
     DEFAULT_BATCH_SIZE,
     DEFAULT_COUNT,
     DEFAULT_DIM,
@@ -257,7 +257,7 @@ def write_report(path: Path, payload: Any) -> None:
 
 
 def container_name(backend: Backend) -> str:
-    return f"rag-demo2-{backend}"
+    return f"rag-demo-{backend}"
 
 
 def weaviate_class_name(collection: str) -> str:

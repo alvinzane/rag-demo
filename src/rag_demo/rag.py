@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import shutil
+from collections.abc import Iterator
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -122,11 +123,44 @@ def ask_question(
     top_k: int = 4,
     collection_name: str | None = None,
 ) -> Answer:
+    docs = retrieve_documents(question, persist_dir, config, top_k, collection_name)
+    chain = answer_chain(config)
+    answer = chain.invoke({"context": format_context(docs), "question": question})
+
+    return Answer(
+        text=answer,
+        sources=sources_from_documents(docs),
+        contexts=[doc.page_content for doc in docs],
+    )
+
+
+def stream_question(
+    question: str,
+    persist_dir: Path,
+    config: ModelConfig,
+    top_k: int = 4,
+    collection_name: str | None = None,
+) -> tuple[Iterator[str], list[dict[str, object]], list[str]]:
+    docs = retrieve_documents(question, persist_dir, config, top_k, collection_name)
+    chain = answer_chain(config)
+    chunks = chain.stream({"context": format_context(docs), "question": question})
+    return chunks, sources_from_documents(docs), [doc.page_content for doc in docs]
+
+
+def retrieve_documents(
+    question: str,
+    persist_dir: Path,
+    config: ModelConfig,
+    top_k: int = 4,
+    collection_name: str | None = None,
+) -> list[Document]:
     metadata = read_metadata(persist_dir)
     store = vectorstore(persist_dir, config, collection_name or metadata.collection_name)
     retriever = store.as_retriever(search_kwargs={"k": top_k})
-    docs = retriever.invoke(question)
+    return retriever.invoke(question)
 
+
+def answer_chain(config: ModelConfig):
     prompt = ChatPromptTemplate.from_template(
         """你是团队知识库问答助手。请只根据给定上下文回答问题。
 如果上下文不足以回答，请直接说“不确定，当前索引中没有足够信息”。
@@ -140,14 +174,14 @@ def ask_question(
 """
     )
     llm = ChatOllama(model=config.chat_model, base_url=config.base_url, temperature=0)
-    chain = prompt | llm | StrOutputParser()
-    answer = chain.invoke({"context": format_context(docs), "question": question})
+    return prompt | llm | StrOutputParser()
 
-    sources = [
+
+def sources_from_documents(docs: list[Document]) -> list[dict[str, object]]:
+    return [
         {
             "source": doc.metadata.get("source", "unknown"),
             "chunk_id": doc.metadata.get("chunk_id", "?"),
         }
         for doc in docs
     ]
-    return Answer(text=answer, sources=sources, contexts=[doc.page_content for doc in docs])

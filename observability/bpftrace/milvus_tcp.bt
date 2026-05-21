@@ -1,40 +1,28 @@
 #!/usr/bin/env bpftrace
 
-BEGIN
-{
-  printf("Tracing TCP send/receive size for Milvus process names. Press Ctrl-C to stop.\n");
-}
+#include <linux/in6.h>
 
-kprobe:tcp_sendmsg
-/comm == "milvus"/
+tracepoint:tcp:tcp_probe
+/comm == "milvus" && args->data_len > 0/
 {
-  @send_bytes = hist(arg2);
+  @send_bytes = hist(args->data_len);
   @send_count = count();
 }
 
-kprobe:tcp_recvmsg
+tracepoint:tcp:tcp_rcv_space_adjust
 /comm == "milvus"/
 {
-  @recv_count = count();
-}
-
-kretprobe:tcp_recvmsg
-/comm == "milvus" && retval > 0/
-{
-  @recv_bytes = hist(retval);
+  @recv_window_adjust = count();
 }
 
 interval:s:5
 {
-  printf("\nTCP send bytes\n");
+  printf("\nTCP send payload bytes\n");
   print(@send_bytes);
-  printf("\nTCP receive bytes\n");
-  print(@recv_bytes);
-  printf("\nTCP calls\n");
+  printf("\nTCP activity\n");
   print(@send_count);
-  print(@recv_count);
+  print(@recv_window_adjust);
   clear(@send_bytes);
-  clear(@recv_bytes);
   clear(@send_count);
-  clear(@recv_count);
+  clear(@recv_window_adjust);
 }

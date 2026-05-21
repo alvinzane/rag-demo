@@ -57,7 +57,7 @@
 观察性：
 
 - `observability/bpftrace/milvus_io.bt`: block I/O 延迟分布。
-- `observability/bpftrace/milvus_tcp.bt`: Milvus TCP 收发。
+- `observability/bpftrace/milvus_tcp.bt`: Milvus TCP send payload 和接收窗口活动。
 - `observability/bpftrace/milvus_syscalls.bt`: syscall 延迟分布。
 
 说明：当前环境使用 `docker-compose` 命令；若本地 Docker 支持 Compose plugin，也可使用 `docker compose`。

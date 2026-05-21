@@ -492,7 +492,7 @@ def t2_observe() -> None:
     table.add_column("Signal")
     table.add_column("Command")
     table.add_row("Block I/O latency", "sudo bpftrace observability/bpftrace/milvus_io.bt")
-    table.add_row("TCP send/receive", "sudo bpftrace observability/bpftrace/milvus_tcp.bt")
+    table.add_row("TCP send/activity", "sudo bpftrace observability/bpftrace/milvus_tcp.bt")
     table.add_row("Syscall latency", "sudo bpftrace observability/bpftrace/milvus_syscalls.bt")
     console.print(table)
     console.print("[yellow]Run bpftrace in one terminal and rag-demo t2 bench in another.[/yellow]")

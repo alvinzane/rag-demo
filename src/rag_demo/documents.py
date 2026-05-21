@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from pathlib import Path
 
 from langchain_community.document_loaders import TextLoader
@@ -22,15 +23,22 @@ def discover_markdown_files(root: Path) -> list[Path]:
 
 
 def load_markdown_documents(root: Path) -> list[Document]:
+    return load_markdown_documents_from_roots([root])
+
+
+def load_markdown_documents_from_roots(roots: Iterable[Path]) -> list[Document]:
     docs: list[Document] = []
-    for path in discover_markdown_files(root):
-        loader = TextLoader(str(path), encoding="utf-8", autodetect_encoding=True)
-        loaded = loader.load()
-        for doc in loaded:
-            doc.metadata["source"] = str(path)
-            docs.append(doc)
+    roots = list(roots)
+    for root in roots:
+        for path in discover_markdown_files(root):
+            loader = TextLoader(str(path), encoding="utf-8", autodetect_encoding=True)
+            loaded = loader.load()
+            for doc in loaded:
+                doc.metadata["source"] = str(path)
+                docs.append(doc)
     if not docs:
-        raise ValueError(f"No Markdown files found under: {root}")
+        joined = ", ".join(str(root) for root in roots)
+        raise ValueError(f"No Markdown files found under: {joined}")
     return docs
 
 

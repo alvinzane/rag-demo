@@ -12,7 +12,7 @@ from rich.table import Table
 from rag_demo import __version__
 from rag_demo.config import DEFAULT_COLLECTION, model_config
 from rag_demo.ollama import check_ollama
-from rag_demo.rag import ask_question, build_index, read_metadata
+from rag_demo.rag import ask_question, build_index, read_metadata, stream_question
 
 console = Console()
 app = typer.Typer(help="RAG and vector database learning demos.", no_args_is_help=True)
@@ -77,7 +77,10 @@ def doctor(
 
 @t1_app.command("index")
 def t1_index(
-    docs: Annotated[Path, typer.Option("--docs", help="Markdown export directory.")],
+    docs: Annotated[
+        list[Path],
+        typer.Option("--docs", help="Markdown export directory. Repeat for multiple dirs."),
+    ],
     persist: Annotated[
         Path,
         typer.Option("--persist", help="Local vector index directory."),
@@ -91,6 +94,9 @@ def t1_index(
     reset: Annotated[bool, typer.Option(help="Delete existing index directory first.")] = False,
 ) -> None:
     """Index Markdown files into a local Chroma vector store."""
+    if not docs:
+        console.print("[red]Missing option:[/red] provide at least one --docs directory")
+        raise typer.Exit(2)
     config = model_config(chat_model, embed_model, base_url)
     try:
         with Progress(
@@ -104,7 +110,7 @@ def t1_index(
                 total=None,
             )
             metadata = build_index(
-                docs_dir=docs,
+                docs_dirs=docs,
                 persist_dir=persist,
                 config=config,
                 chunk_size=chunk_size,
@@ -180,9 +186,25 @@ def t1_chat(
         question = typer.prompt("Question")
         if question.strip().lower() in {"/exit", "exit", "quit", ":q"}:
             break
-        answer = ask_question(question, persist, config, top_k=top_k)
-        console.print(Panel(answer.text, title="Answer", expand=False))
-        _print_sources(answer.sources)
+        try:
+            chunks, sources, _contexts = stream_question(question, persist, config, top_k=top_k)
+        except FileNotFoundError as exc:
+            console.print(f"[red]Index not found:[/red] {exc}")
+            console.print("[cyan]Next:[/cyan] rag-demo t1 index --docs <markdown-dir>")
+            raise typer.Exit(1) from exc
+        except Exception as exc:
+            console.print(f"[red]Ask failed:[/red] {exc}")
+            raise typer.Exit(1) from exc
+
+        console.print("[bold]Answer[/bold]")
+        try:
+            for chunk in chunks:
+                console.print(chunk, end="", markup=False, highlight=False, soft_wrap=True)
+            console.print()
+        except Exception as exc:
+            console.print(f"\n[red]Ask failed:[/red] {exc}")
+            raise typer.Exit(1) from exc
+        _print_sources(sources)
 
 
 @t1_app.command("inspect")

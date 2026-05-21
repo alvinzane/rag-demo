@@ -6,6 +6,7 @@ from rag_demo.rag import IndexMetadata, read_metadata, write_metadata
 def test_metadata_roundtrip(tmp_path: Path) -> None:
     metadata = IndexMetadata(
         docs_dir="docs",
+        docs_dirs=["docs"],
         document_count=2,
         chunk_count=4,
         chunk_size=800,

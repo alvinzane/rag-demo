@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import shutil
+from collections.abc import Iterator
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -12,7 +13,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_ollama import ChatOllama, OllamaEmbeddings
 
 from rag_demo.config import DEFAULT_COLLECTION, ModelConfig
-from rag_demo.documents import load_markdown_documents, split_documents
+from rag_demo.documents import load_markdown_documents_from_roots, split_documents
 
 META_FILE = "index_meta.json"
 
@@ -20,6 +21,7 @@ META_FILE = "index_meta.json"
 @dataclass(frozen=True)
 class IndexMetadata:
     docs_dir: str
+    docs_dirs: list[str]
     document_count: int
     chunk_count: int
     chunk_size: int
@@ -52,7 +54,7 @@ def vectorstore(
 
 
 def build_index(
-    docs_dir: Path,
+    docs_dirs: list[Path],
     persist_dir: Path,
     config: ModelConfig,
     chunk_size: int = 800,
@@ -64,7 +66,7 @@ def build_index(
         shutil.rmtree(persist_dir)
     persist_dir.mkdir(parents=True, exist_ok=True)
 
-    docs = load_markdown_documents(docs_dir)
+    docs = load_markdown_documents_from_roots(docs_dirs)
     chunks = split_documents(docs, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
     Chroma.from_documents(
         documents=chunks,
@@ -74,7 +76,8 @@ def build_index(
     )
 
     metadata = IndexMetadata(
-        docs_dir=str(docs_dir),
+        docs_dir=str(docs_dirs[0]),
+        docs_dirs=[str(path) for path in docs_dirs],
         document_count=len(docs),
         chunk_count=len(chunks),
         chunk_size=chunk_size,
@@ -90,7 +93,10 @@ def read_metadata(persist_dir: Path) -> IndexMetadata:
     meta_path = persist_dir / META_FILE
     if not meta_path.exists():
         raise FileNotFoundError(f"Index metadata not found: {meta_path}")
-    return IndexMetadata(**json.loads(meta_path.read_text(encoding="utf-8")))
+    payload = json.loads(meta_path.read_text(encoding="utf-8"))
+    if "docs_dirs" not in payload:
+        payload["docs_dirs"] = [payload["docs_dir"]]
+    return IndexMetadata(**payload)
 
 
 def write_metadata(persist_dir: Path, metadata: IndexMetadata) -> None:
@@ -117,11 +123,44 @@ def ask_question(
     top_k: int = 4,
     collection_name: str | None = None,
 ) -> Answer:
+    docs = retrieve_documents(question, persist_dir, config, top_k, collection_name)
+    chain = answer_chain(config)
+    answer = chain.invoke({"context": format_context(docs), "question": question})
+
+    return Answer(
+        text=answer,
+        sources=sources_from_documents(docs),
+        contexts=[doc.page_content for doc in docs],
+    )
+
+
+def stream_question(
+    question: str,
+    persist_dir: Path,
+    config: ModelConfig,
+    top_k: int = 4,
+    collection_name: str | None = None,
+) -> tuple[Iterator[str], list[dict[str, object]], list[str]]:
+    docs = retrieve_documents(question, persist_dir, config, top_k, collection_name)
+    chain = answer_chain(config)
+    chunks = chain.stream({"context": format_context(docs), "question": question})
+    return chunks, sources_from_documents(docs), [doc.page_content for doc in docs]
+
+
+def retrieve_documents(
+    question: str,
+    persist_dir: Path,
+    config: ModelConfig,
+    top_k: int = 4,
+    collection_name: str | None = None,
+) -> list[Document]:
     metadata = read_metadata(persist_dir)
     store = vectorstore(persist_dir, config, collection_name or metadata.collection_name)
     retriever = store.as_retriever(search_kwargs={"k": top_k})
-    docs = retriever.invoke(question)
+    return retriever.invoke(question)
 
+
+def answer_chain(config: ModelConfig):
     prompt = ChatPromptTemplate.from_template(
         """你是团队知识库问答助手。请只根据给定上下文回答问题。
 如果上下文不足以回答，请直接说“不确定，当前索引中没有足够信息”。
@@ -135,14 +174,14 @@ def ask_question(
 """
     )
     llm = ChatOllama(model=config.chat_model, base_url=config.base_url, temperature=0)
-    chain = prompt | llm | StrOutputParser()
-    answer = chain.invoke({"context": format_context(docs), "question": question})
+    return prompt | llm | StrOutputParser()
 
-    sources = [
+
+def sources_from_documents(docs: list[Document]) -> list[dict[str, object]]:
+    return [
         {
             "source": doc.metadata.get("source", "unknown"),
             "chunk_id": doc.metadata.get("chunk_id", "?"),
         }
         for doc in docs
     ]
-    return Answer(text=answer, sources=sources, contexts=[doc.page_content for doc in docs])

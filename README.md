@@ -18,11 +18,12 @@
 uv sync
 ```
 
-准备 Ollama 模型：
+配置 Ollama。默认会使用本机 `http://localhost:11434`、`llama3.1` 和 `nomic-embed-text`；如果使用课堂远端 Ollama，先设置：
 
 ```bash
-ollama pull llama3.1
-ollama pull nomic-embed-text
+export OLLAMA_HOST=http://192.168.1.18:11434
+export RAG_DEMO_CHAT_MODEL=deepseek-v4-pro:cloud
+export RAG_DEMO_EMBED_MODEL=qwen3-embedding:latest
 ```
 
 检查环境：
@@ -31,22 +32,27 @@ ollama pull nomic-embed-text
 uv run rag-demo doctor
 ```
 
-索引 Markdown 目录：
+如果没有设置 `RAG_DEMO_EMBED_MODEL`，索引会使用默认的 `nomic-embed-text`。远端 Ollama 没有该模型时会报 `model "nomic-embed-text" not found`。
+
+索引 main 分支的一本 ebook：
 
 ```bash
-uv run rag-demo t1 index --docs ./confluence-export --persist ./.rag/index
+uv run rag-demo t1 index \
+  --docs ../rag-demo/ebooks/beyond-vibe-coding-cn \
+  --persist ./.rag/ebooks \
+  --reset
 ```
 
 问答：
 
 ```bash
-uv run rag-demo t1 ask "团队的发布流程是什么？" --persist ./.rag/index
+uv run rag-demo t1 ask "什么是 Vibe 编程？它和 AI 辅助工程有什么区别？" --persist ./.rag/ebooks
 ```
 
 交互式问答：
 
 ```bash
-uv run rag-demo t1 chat --persist ./.rag/index
+uv run rag-demo t1 chat --persist ./.rag/ebooks
 ```
 
 ## Worktree

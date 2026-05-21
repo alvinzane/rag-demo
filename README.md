@@ -64,6 +64,8 @@ uv run rag-demo t1 chat --persist ./.rag/ebooks
 
 ## W4-T2 Milvus 1M Benchmark
 
+本轮测试结果和面向新手的指标说明见 [docs/T2_MILVUS_BENCHMARK_RESULTS.md](docs/T2_MILVUS_BENCHMARK_RESULTS.md)。
+
 启动 Milvus、etcd、MinIO 和 Attu：
 
 ```bash
